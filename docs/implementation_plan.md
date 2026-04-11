@@ -1276,13 +1276,8 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 
 **Phase 3 — Integration (week 5-7)**
 
-<<<<<<< HEAD
-- [ ] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → local model → audit log
+- [ ] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → local model → audit log — *basic Linux-host smoke complete: VM boot + AgentFS DB + audit chain verified; full guardrails/router path still pending*
 - [ ] 3.2 Guardrails circular dependency validation (self-check direct to the local model, user traffic via router)
-=======
-- [ ] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → maindev → audit log — *basic Fedora smoke complete: VM boot + AgentFS DB + audit chain verified; full guardrails/router path still pending*
-- [ ] 3.2 Guardrails circular dependency validation (self-check direct to maindev, user traffic via router)
->>>>>>> 8bbb8fb (Fix packaging and agentfs smoke-test gaps)
 - [ ] 3.3 AgentFS diff validation: confirm all guest mutations are captured and diffable
 - [ ] 3.4 Red team test suite execution (all four attack categories)
 - [ ] 3.5 Vendor_Guard integration: add manifest, bake into rootfs, test full pipeline
