@@ -897,6 +897,29 @@ Firecracker requires Linux with KVM support. In the modular single-host baseline
 | **Optional dev machine** | Code editing and remote access | Can SSH into the Linux host if needed. |
 | **Mock mode** | Local dev without Firecracker | `saaf-shell run --mock` skips VM boot, runs agent as local subprocess, logs what *would* be enforced. Allows testing guardrails, router, and audit logging without KVM. |
 
+### Branch Strategy and CI/CD
+
+The repo now uses a two-track branch model so local infrastructure work does not leak into the portable contribution path.
+
+| Branch | Purpose | Rules |
+|---|---|---|
+| `robin/local-phase2-devstack` | Personal/local branch for machine-specific setup, multi-host notes, and dev-environment glue | Can include local operational details for Robin's setup. |
+| `modular/single-host-phase2` | Portable contribution branch for upstream-safe work | Must stay single-host, modular, and free of machine-specific names, IPs, and device assumptions. |
+| `main` | Conservative baseline branch | Only updated when reviewed modular work is ready to become the new default baseline. |
+
+CI/CD is branch-aware:
+
+- `test.yml` runs `python -m pytest tests/ --ignore=tests/test_presidio_redact.py -q` on every push and pull request.
+- `branch-policy.yml` enforces portability rules on `main` and `modular/*` branches.
+- The portability policy intentionally skips `robin/local-phase2-devstack` so local operations work can continue without fighting upstream hygiene checks.
+- Workflow updates require GitHub authentication with `workflow` scope.
+
+Promotion rule:
+
+1. Build and iterate freely on `robin/local-phase2-devstack` when the work is specific to Robin's hardware or network.
+2. Port only the reusable parts to `modular/single-host-phase2`.
+3. Promote `modular/single-host-phase2` to `main` only when the branch represents a clean upstream-ready baseline.
+
 ### Test Fixtures
 
 Deliverable: `tests/fixtures/` containing:
