@@ -1,5 +1,5 @@
 # NeMo Guardrails server config — saaf-compliance-shell
-# Phase 1-3: maindev runs Ollama. Phase 4+: maindev runs vLLM-TurboQuant.
+# Phase 1-3: the local host runs Ollama. Phase 4+: the local host runs vLLM-TurboQuant.
 # Both serve OpenAI-compatible API on the same endpoint — config does not change.
 
 models:
