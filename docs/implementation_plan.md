@@ -1236,7 +1236,7 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 - [x] 1.6 NeMo Guardrails: config.yml + Colang 2.0 PII masking flows + presidio_redact action
 - [ ] 1.7 Ollama + Nemotron-3 8B Q4 on maindev (100.87.245.60:8000) — dev inference endpoint *(script ready)*
 - [ ] 1.8 Verify fedoraserver-to-maindev connectivity over Tailscale (port 8000)
-- [x] 1.9 Test fixtures: synthetic PII samples, manifests, audit logs — *PII samples + manifest fixtures done, audit log fixtures remaining*
+- [x] 1.9 Test fixtures: synthetic PII samples, manifests, audit logs — *all fixtures complete (PII, manifests, audit JSONL)*
 
 **Phase 2 — Core enforcement (week 3-5)**
 
@@ -1245,7 +1245,7 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 - [ ] 2.3 AgentFS integration: overlay per session, diff command, SQLite inspection
 - [x] 2.4 Tamper-evident audit log: SHA-256 hash-chained JSONL, multi-session, verify_log — *11 tests passing*
 - [ ] 2.5 NeMo Guardrails: self-check input rail (prompt injection) + topical control flow
-- [x] 2.6 Privacy Router: FastAPI, local-only routing to maindev, route logging
+- [x] 2.6 Privacy Router: FastAPI, local-only routing to maindev, route logging — *6 tests passing*
 - [x] 2.7 saaf-manifest.yaml schema + validator — *11 tests passing*
 
 **Phase 3 — Integration (week 5-7)**
@@ -1263,7 +1263,7 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 - [ ] 4.2 VM crash recovery: AgentFS overlay preservation, audit log chain integrity
 - [ ] 4.3 Log rotation + retention enforcement
 - [ ] 4.4 Guardrails edge cases: concurrent requests, self-check latency under load
-- [ ] 4.5 Shell CLI polish: run, validate, verify-log, diff, sessions, test commands
+- [ ] 4.5 Shell CLI polish: run, validate, verify-log, diff, sessions, test commands — *validate + verify-log working, Phase 2+ stubs in place (10 CLI tests)*
 - [ ] 4.6 vLLM-TurboQuant: source build on maindev (CUDA 12.8, SM86 compatibility test)
 - [ ] 4.7 vLLM-TurboQuant: benchmark vs Ollama (throughput, latency, concurrent request handling)
 - [ ] 4.8 Swap inference backend: Ollama → vLLM-TurboQuant on maindev (same port, transparent to shell)
