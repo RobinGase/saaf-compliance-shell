@@ -110,12 +110,18 @@ async def presidio_redact(
         score_threshold=threshold,
     )
 
+    # Build per-entity operators so each PII type gets its own placeholder
+    operators = {
+        r.entity_type: OperatorConfig("replace", {"new_value": f"<{r.entity_type}>"})
+        for r in results
+    }
+    if not operators:
+        operators = {"DEFAULT": OperatorConfig("replace", {"new_value": "<PII>"})}
+
     anonymized = _anonymizer.anonymize(
         text=text,
         analyzer_results=results,
-        operators={
-            "DEFAULT": OperatorConfig("replace", {"new_value": "<{entity_type}>"}),
-        },
+        operators=operators,
     )
 
     # Check if any PII survived redaction (shouldn't happen, but defense in depth)

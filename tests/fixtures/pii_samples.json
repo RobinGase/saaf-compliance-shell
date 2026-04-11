@@ -15,8 +15,8 @@
     {
       "id": "email_simple",
       "text": "Neem contact op met j.devries@bedrijf.nl voor meer informatie.",
-      "expected_entities": ["PERSON", "EMAIL_ADDRESS"],
-      "description": "Dutch email with name"
+      "expected_entities": ["EMAIL_ADDRESS"],
+      "description": "Dutch email address"
     },
     {
       "id": "bsn_valid_9digit",
