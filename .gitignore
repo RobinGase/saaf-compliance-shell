@@ -22,6 +22,7 @@ vm_config.*.json
 
 # Audit logs (sensitive — never commit)
 *.jsonl
+!tests/fixtures/*.jsonl
 /var/
 
 # OS
