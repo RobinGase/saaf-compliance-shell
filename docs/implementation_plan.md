@@ -1226,55 +1226,55 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 
 ### Track A: Technical (parallel where possible)
 
-```
-Phase 1 — Foundations (week 1-3)
-├── 1.1 Verify fedoraserver has KVM support (lscpu, /dev/kvm, kvm-ok)
-├── 1.2 Install Firecracker v1.15+ and AgentFS v0.6+ on fedoraserver
-├── 1.3 Build base rootfs: debootstrap Ubuntu 24.04, strip unnecessary tools, bake in Python + agent deps
-├── 1.4 Compile Amazon Linux microVM kernel (or download pre-built vmlinux)
-├── 1.5 Presidio: BSN custom recognizer + Dutch NLP model (spaCy nl_core_news_lg)
-├── 1.6 NeMo Guardrails: config.yml + Colang 2.0 PII masking flows + presidio_redact action
-├── 1.7 Ollama + Nemotron-3 8B Q4 on maindev (100.87.245.60:8000) — dev inference endpoint
-├── 1.8 Verify fedoraserver-to-maindev connectivity over Tailscale (port 8000)
-└── 1.9 Test fixtures: synthetic PII samples, manifests, audit logs
+**Phase 1 — Foundations (week 1-3)**
 
-Phase 2 — Core enforcement (week 3-5)
-├── 2.1 Firecracker VM launcher: TAP creation, AgentFS overlay, VM boot from manifest
-├── 2.2 TAP network policy: iptables rules — guest can only reach host:8088 (guardrails)
-├── 2.3 AgentFS integration: overlay per session, diff command, SQLite inspection
-├── 2.4 Audit log bridge: merge AgentFS events + network + guardrails into hash-chained JSONL
-├── 2.5 NeMo Guardrails: self-check input rail (prompt injection) + topical control flow
-├── 2.6 Privacy Router: FastAPI, local-only routing to maindev, route logging
-└── 2.7 saaf-manifest.yaml schema + validator
+- [ ] 1.1 Verify fedoraserver has KVM support (lscpu, /dev/kvm, kvm-ok)
+- [ ] 1.2 Install Firecracker v1.15+ and AgentFS v0.6+ on fedoraserver
+- [ ] 1.3 Build base rootfs: debootstrap Ubuntu 24.04, strip unnecessary tools, bake in Python + agent deps
+- [ ] 1.4 Compile Amazon Linux microVM kernel (or download pre-built vmlinux)
+- [x] 1.5 Presidio: BSN custom recognizer + Dutch NLP model (spaCy nl_core_news_lg) — *22 tests passing*
+- [x] 1.6 NeMo Guardrails: config.yml + Colang 2.0 PII masking flows + presidio_redact action
+- [ ] 1.7 Ollama + Nemotron-3 8B Q4 on maindev (100.87.245.60:8000) — dev inference endpoint *(script ready)*
+- [ ] 1.8 Verify fedoraserver-to-maindev connectivity over Tailscale (port 8000)
+- [x] 1.9 Test fixtures: synthetic PII samples, manifests, audit logs — *PII samples + manifest fixtures done, audit log fixtures remaining*
 
-Phase 3 — Integration (week 5-7)
-├── 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → maindev → audit log
-├── 3.2 Guardrails circular dependency validation (self-check direct to maindev, user traffic via router)
-├── 3.3 AgentFS diff validation: confirm all guest mutations are captured and diffable
-├── 3.4 Red team test suite execution (all four attack categories)
-├── 3.5 Vendor_Guard integration: add manifest, bake into rootfs, test full pipeline
-└── 3.6 Laptop access test: SSH into fedoraserver, run full pipeline from laptop
+**Phase 2 — Core enforcement (week 3-5)**
 
-Phase 4 — Hardening + Inference Upgrade (week 7-9)
-├── 4.1 Path PII sanitization in audit logs
-├── 4.2 VM crash recovery: AgentFS overlay preservation, audit log chain integrity
-├── 4.3 Log rotation + retention enforcement
-├── 4.4 Guardrails edge cases: concurrent requests, self-check latency under load
-├── 4.5 Shell CLI polish: run, validate, verify-log, diff, sessions, test commands
-├── 4.6 vLLM-TurboQuant: source build on maindev (CUDA 12.8, SM86 compatibility test)
-├── 4.7 vLLM-TurboQuant: benchmark vs Ollama (throughput, latency, concurrent request handling)
-└── 4.8 Swap inference backend: Ollama → vLLM-TurboQuant on maindev (same port, transparent to shell)
-```
+- [ ] 2.1 Firecracker VM launcher: TAP creation, AgentFS overlay, VM boot from manifest
+- [ ] 2.2 TAP network policy: iptables rules — guest can only reach host:8088 (guardrails)
+- [ ] 2.3 AgentFS integration: overlay per session, diff command, SQLite inspection
+- [x] 2.4 Tamper-evident audit log: SHA-256 hash-chained JSONL, multi-session, verify_log — *11 tests passing*
+- [ ] 2.5 NeMo Guardrails: self-check input rail (prompt injection) + topical control flow
+- [x] 2.6 Privacy Router: FastAPI, local-only routing to maindev, route logging
+- [x] 2.7 saaf-manifest.yaml schema + validator — *11 tests passing*
+
+**Phase 3 — Integration (week 5-7)**
+
+- [ ] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → maindev → audit log
+- [ ] 3.2 Guardrails circular dependency validation (self-check direct to maindev, user traffic via router)
+- [ ] 3.3 AgentFS diff validation: confirm all guest mutations are captured and diffable
+- [ ] 3.4 Red team test suite execution (all four attack categories)
+- [ ] 3.5 Vendor_Guard integration: add manifest, bake into rootfs, test full pipeline
+- [ ] 3.6 Laptop access test: SSH into fedoraserver, run full pipeline from laptop
+
+**Phase 4 — Hardening + Inference Upgrade (week 7-9)**
+
+- [ ] 4.1 Path PII sanitization in audit logs
+- [ ] 4.2 VM crash recovery: AgentFS overlay preservation, audit log chain integrity
+- [ ] 4.3 Log rotation + retention enforcement
+- [ ] 4.4 Guardrails edge cases: concurrent requests, self-check latency under load
+- [ ] 4.5 Shell CLI polish: run, validate, verify-log, diff, sessions, test commands
+- [ ] 4.6 vLLM-TurboQuant: source build on maindev (CUDA 12.8, SM86 compatibility test)
+- [ ] 4.7 vLLM-TurboQuant: benchmark vs Ollama (throughput, latency, concurrent request handling)
+- [ ] 4.8 Swap inference backend: Ollama → vLLM-TurboQuant on maindev (same port, transparent to shell)
 
 ### Track B: Legal / Compliance (parallel with Track A)
 
-```
-Weeks 1-2: Draft DPIA (based on planned architecture, not built system)
-Weeks 3-4: Legal basis register, Article 30 processing register
-Weeks 5-6: Data subject rights runbook, breach response runbook
-Week 7:    Revise DPIA with actual technical mitigations from Track A
-Week 8:    DPO review and sign-off
-```
+- [ ] Weeks 1-2: Draft DPIA (based on planned architecture, not built system)
+- [ ] Weeks 3-4: Legal basis register, Article 30 processing register
+- [ ] Weeks 5-6: Data subject rights runbook, breach response runbook
+- [ ] Week 7: Revise DPIA with actual technical mitigations from Track A
+- [ ] Week 8: DPO review and sign-off
 
 **Gate:** DPIA sign-off before production data enters the system. Development and testing use synthetic data only until sign-off.
 
