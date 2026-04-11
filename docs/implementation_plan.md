@@ -1228,10 +1228,10 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 
 **Phase 1 — Foundations (week 1-3)**
 
-- [ ] 1.1 Verify fedoraserver has KVM support (lscpu, /dev/kvm, kvm-ok)
-- [ ] 1.2 Install Firecracker v1.15+ and AgentFS v0.6+ on fedoraserver
+- [x] 1.1 Verify fedoraserver has KVM support — *VT-x confirmed, /dev/kvm present, i5-4210H 4T, 7.7GB RAM*
+- [x] 1.2 Install Firecracker v1.15.0 + AgentFS v0.6.4 on fedoraserver — *+ jailer, debootstrap, nfs-utils*
 - [ ] 1.3 Build base rootfs: debootstrap Ubuntu 24.04, strip unnecessary tools, bake in Python + agent deps
-- [ ] 1.4 Compile Amazon Linux microVM kernel (or download pre-built vmlinux)
+- [x] 1.4 Pre-built microVM kernel downloaded — */opt/saaf/kernels/vmlinux (21MB)*
 - [x] 1.5 Presidio: BSN custom recognizer + Dutch NLP model (spaCy nl_core_news_lg) — *22 tests passing*
 - [x] 1.6 NeMo Guardrails: config.yml + Colang 2.0 PII masking flows + presidio_redact action
 - [ ] 1.7 Ollama + Nemotron-3 8B Q4 on maindev (100.87.245.60:8000) — dev inference endpoint *(script ready)*
