@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up Ollama + Nemotron-3 8B Q4 on maindev for local inference.
+# Set up Ollama + Nemotron 8B on maindev for local inference.
 # Run this on maindev (Windows — use Git Bash or WSL).
 # Usage: bash scripts/setup-ollama-maindev.sh
 
@@ -27,8 +27,8 @@ fi
 
 # 3. Pull the model
 echo ""
-echo "--- Pulling Nemotron-3 8B Q4 ---"
-ollama pull nemotron:8b-instruct-q4_K_M
+echo "--- Pulling Nemotron 8B ---"
+ollama pull Randomblock1/nemotron-nano:8b
 
 # 4. Configure Ollama to listen on all interfaces (for Tailscale access)
 echo ""
@@ -44,7 +44,7 @@ echo ""
 # 5. Quick test
 echo "--- Quick test ---"
 echo "Testing model locally..."
-RESPONSE=$(ollama run nemotron:8b-instruct-q4_K_M "Reply with only: OK" 2>/dev/null | head -1)
+RESPONSE=$(ollama run Randomblock1/nemotron-nano:8b "Reply with only: OK" 2>/dev/null | head -1)
 echo "Model response: $RESPONSE"
 
 echo ""

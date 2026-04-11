@@ -5,13 +5,13 @@
 models:
   - type: main
     engine: openai
-    model: nemotron:8b-instruct-q4_K_M
+    model: Randomblock1/nemotron-nano:8b
     parameters:
       base_url: http://127.0.0.1:8089/v1  # via Privacy Router for user traffic
 
   - type: self_check
     engine: openai
-    model: nemotron:8b-instruct-q4_K_M
+    model: Randomblock1/nemotron-nano:8b
     parameters:
       base_url: http://100.87.245.60:8000/v1  # direct to maindev for guardrails' own checks
 

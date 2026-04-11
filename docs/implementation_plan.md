@@ -25,7 +25,7 @@ The shell is not a monolithic audit tool. It is a reusable enforcement layer tha
 | Privacy Router — local-only, two-tier classification (`sensitive` / `test`) | Three-tier classification, cloud fallback routing |
 | Append-only audit log with hash chaining | WORM storage, HSM signing, automated breach notification pipeline |
 | Manual data subject rights runbooks | Automated rights request workflows |
-| Ollama + Nemotron-3 8B Q4 for inference (Phase 1-3) | vLLM-TurboQuant for production throughput (Phase 4+) |
+| Ollama + `Randomblock1/nemotron-nano:8b` for inference (Phase 1-3 dev baseline) | vLLM-TurboQuant for production throughput (Phase 4+) |
 | `Vendor_Guard` as first integration target | Processor agreement template for external deployments |
 | Synthetic test fixtures and red team validation | Full CI/CD pipeline with automated compliance gates |
 
@@ -421,13 +421,13 @@ NeMo Guardrails uses an LLM internally for intent matching and self-check rails.
 models:
   - type: main
     engine: openai  # NeMo Guardrails "openai" engine works with any OpenAI-compatible API
-    model: nemotron:8b-instruct-q4_K_M  # Ollama model tag (Phase 1-3)
+    model: Randomblock1/nemotron-nano:8b  # Current Ollama model tag on maindev
     parameters:
       base_url: http://127.0.0.1:8089/v1  # via Privacy Router for user traffic
 
   - type: self_check
     engine: openai
-    model: nemotron:8b-instruct-q4_K_M
+    model: Randomblock1/nemotron-nano:8b
     parameters:
       base_url: http://100.87.245.60:8000/v1  # direct to maindev for guardrails' own checks
 
@@ -942,19 +942,19 @@ laptop ──SSH──▶ fedoraserver (100.115.144.22)
 maindev (100.87.245.60)
   │
   │  Model inference runs here:
-  │    Phase 1-3: Ollama serving Nemotron-3 8B Q4 on port 8000
-  │    Phase 4+:  vLLM-TurboQuant serving Nemotron-3 8B on port 8000
+  │    Phase 1-3: Ollama serving Randomblock1/nemotron-nano:8b on port 8000
+  │    Phase 4+:  vLLM-TurboQuant serving an 8B-class backend on port 8000
 ```
 
 ### RTX 3080 VRAM Budget (10GB)
 
-The 3080 has 10GB VRAM — not enough for Nemotron-3 8B at full precision (~16GB), but works with quantization.
+The 3080 has 10GB VRAM. The current Ollama dev baseline is `Randomblock1/nemotron-nano:8b` at about 5GB on disk; the originally planned `nemotron:8b-instruct-q4_K_M` tag was not available in Ollama.
 
 **Phase 1-3: Ollama (development and integration testing)**
 
 | Component | VRAM |
 |---|---|
-| Nemotron-3 8B Q4 model weights | ~5-6GB |
+| Randomblock1/nemotron-nano:8b model weights | ~5GB |
 | KV cache (standard) | ~2-3GB |
 | Overhead | ~1GB |
 | **Total** | **~8-10GB** ✓ fits |
@@ -962,7 +962,7 @@ The 3080 has 10GB VRAM — not enough for Nemotron-3 8B at full precision (~16GB
 ```bash
 # On maindev — start the inference endpoint
 ollama serve &
-ollama pull nemotron:8b-instruct-q4_K_M
+ollama pull Randomblock1/nemotron-nano:8b
 
 # Expose on all interfaces so fedoraserver can reach it via Tailscale
 # Set OLLAMA_HOST=0.0.0.0:8000 in environment
@@ -977,7 +977,7 @@ Privacy Router on fedoraserver points to: `http://100.87.245.60:8000/v1/chat/com
 
 | Component | VRAM (standard vLLM) | VRAM (TurboQuant) |
 |---|---|---|
-| Nemotron-3 8B INT4 weights | ~5GB | ~5GB |
+| Randomblock1/nemotron-nano:8b weights | ~5GB | ~5GB |
 | KV cache | ~3-4GB | ~1.5-2GB (turboquant35) |
 | vLLM overhead | ~1GB | ~1GB |
 | **Total** | **~9-10GB** tight | **~7.5-8GB** comfortable ✓ |
@@ -1234,7 +1234,7 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 - [x] 1.4 Pre-built microVM kernel downloaded — */opt/saaf/kernels/vmlinux (21MB)*
 - [x] 1.5 Presidio: BSN custom recognizer + Dutch NLP model (spaCy nl_core_news_lg) — *22 tests passing*
 - [x] 1.6 NeMo Guardrails: config.yml + Colang 2.0 PII masking flows + presidio_redact action
-- [ ] 1.7 Ollama + Nemotron-3 8B Q4 on maindev (100.87.245.60:8000) — dev inference endpoint *(script ready)*
+- [x] 1.7 Ollama + `Randomblock1/nemotron-nano:8b` on maindev (100.87.245.60:8000) — dev inference endpoint
 - [ ] 1.8 Verify fedoraserver-to-maindev connectivity over Tailscale (port 8000)
 - [x] 1.9 Test fixtures: synthetic PII samples, manifests, audit logs — *all fixtures complete (PII, manifests, audit JSONL)*
 
@@ -1362,7 +1362,7 @@ These must be resolved before or during Phase 1. They do not block planning but 
 | D3 | Vendor_Guard agent framework | Open | LangChain / custom / other | Affects manifest entrypoint and env injection |
 | D4 | fedoraserver KVM support | Open — **verify in Phase 1** | `lscpu \| grep Virtualization`, `ls /dev/kvm`, `kvm-ok`. If fedoraserver is a VM, nested virt must be enabled. | **Blocks entire isolation module** if KVM is unavailable. Fallback: Landlock (weaker but no KVM needed). |
 | ~~D5~~ | ~~NIM licensing~~ | **RESOLVED** | Not using NIM container — Ollama (Phase 1-3) then vLLM-TurboQuant (Phase 4+) | No NGC dependency |
-| D6 | Guardrails self-check model | Open | Same Nemotron-3 8B Q4 on maindev / smaller model via Ollama multi-model | Self-check adds ~2 LLM calls per request. On a single 3080, this competes with user inference. May need a smaller self-check model. |
+| D6 | Guardrails self-check model | Open | Same `Randomblock1/nemotron-nano:8b` on maindev / smaller model via Ollama multi-model | Self-check adds ~2 LLM calls per request. On a single 3080, this competes with user inference. May need a smaller self-check model. |
 | D7 | Per-process network isolation | Open | Separate UIDs (auditagent, guardrails, router) / single netns with port-only rules | Separate UIDs is more secure but adds deployment complexity |
 | D8 | vLLM-TurboQuant SM86 compatibility | Open — **verify in Phase 4** | Build and test on 3080. Fallback: stay on Ollama if build fails. | Only tested on A6000 (SM86) and GB10 (SM121). 3080 is SM86 but not explicitly listed. |
 | D9 | maindev firewall for port 8000 | Open — **configure in Phase 1** | Restrict to Tailscale interface (`tailscale0`) only | Prevents LAN exposure of model endpoint |

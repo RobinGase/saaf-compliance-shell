@@ -2,9 +2,7 @@
 
 from pathlib import Path
 
-import pytest
-
-from cli import build_parser, cmd_validate, cmd_verify_log
+from cli import build_parser
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -65,25 +63,50 @@ class TestVerifyLogCommand:
         assert "FAIL" in out
 
 
-class TestPhase2Stubs:
-    def test_run_not_implemented(self, capsys):
+class TestPhase2Commands:
+    def test_run_executes_manifest(self, monkeypatch, capsys):
         parser = build_parser()
         args = parser.parse_args(["run", "--manifest", "dummy.yaml"])
-        rc = args.func(args)
-        assert rc == 2
-        assert "Phase 2" in capsys.readouterr().out
 
-    def test_diff_not_implemented(self, capsys):
+        def fake_run_manifest(path: str):
+            assert path == "dummy.yaml"
+            return "session-001"
+
+        monkeypatch.setattr("cli.run_manifest", fake_run_manifest)
+
+        rc = args.func(args)
+
+        assert rc == 0
+        assert "session-001" in capsys.readouterr().out
+
+    def test_diff_prints_agentfs_changes(self, monkeypatch, capsys):
         parser = build_parser()
         args = parser.parse_args(["diff", "--agent-id", "test-001"])
-        rc = args.func(args)
-        assert rc == 2
 
-    def test_sessions_not_implemented(self, capsys):
+        monkeypatch.setattr(
+            "cli.diff_session",
+            lambda agent_id: ["M /audit_workspace/report.txt", "A /audit_workspace/notes.md"],
+        )
+
+        rc = args.func(args)
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "report.txt" in out
+        assert "notes.md" in out
+
+    def test_sessions_lists_known_agentfs_sessions(self, monkeypatch, capsys):
         parser = build_parser()
         args = parser.parse_args(["sessions"])
+
+        monkeypatch.setattr("cli.list_sessions", lambda: ["session-001", "session-002"])
+
         rc = args.func(args)
-        assert rc == 2
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "session-001" in out
+        assert "session-002" in out
 
     def test_test_not_implemented(self, capsys):
         parser = build_parser()

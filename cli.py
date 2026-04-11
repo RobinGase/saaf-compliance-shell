@@ -14,7 +14,22 @@ import sys
 from pathlib import Path
 
 from modules.audit.log import verify_log
+from modules.isolation.agentfs import AgentFSClient
+from modules.isolation.runtime import run_manifest
 from modules.manifest.validator import validate_manifest
+
+DEFAULT_ROOTFS = Path("/opt/saaf/rootfs/ubuntu-24.04-python-base")
+DEFAULT_OVERLAY_DIR = Path("/opt/saaf/.agentfs")
+
+_AGENTFS = AgentFSClient(base_rootfs=DEFAULT_ROOTFS, overlay_dir=DEFAULT_OVERLAY_DIR)
+
+
+def diff_session(agent_id: str) -> list[str]:
+    return _AGENTFS.diff_session(agent_id)
+
+
+def list_sessions() -> list[str]:
+    return _AGENTFS.list_sessions()
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -47,21 +62,49 @@ def cmd_verify_log(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    """Launch a target repo inside the compliance shell (Phase 2+)."""
-    print("ERROR: 'run' requires Firecracker + AgentFS (Phase 2). Not yet implemented.")
-    return 2
+    """Launch a target repo inside the compliance shell."""
+    try:
+        session_id = run_manifest(args.manifest)
+    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
+        print(f"FAIL — {exc}")
+        return 1
+
+    print(f"OK — started session {session_id}")
+    return 0
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
-    """Inspect AgentFS filesystem changes (Phase 2+)."""
-    print("ERROR: 'diff' requires AgentFS (Phase 2). Not yet implemented.")
-    return 2
+    """Inspect AgentFS filesystem changes."""
+    try:
+        changes = diff_session(args.agent_id)
+    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
+        print(f"FAIL — {exc}")
+        return 1
+
+    if not changes:
+        print(f"OK — no changes for {args.agent_id}")
+        return 0
+
+    for line in changes:
+        print(line)
+    return 0
 
 
 def cmd_sessions(args: argparse.Namespace) -> int:
-    """List all agent sessions (Phase 2+)."""
-    print("ERROR: 'sessions' requires AgentFS (Phase 2). Not yet implemented.")
-    return 2
+    """List all agent sessions."""
+    try:
+        sessions = list_sessions()
+    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
+        print(f"FAIL — {exc}")
+        return 1
+
+    if not sessions:
+        print("OK — no sessions found")
+        return 0
+
+    for session_id in sessions:
+        print(session_id)
+    return 0
 
 
 def cmd_test(args: argparse.Namespace) -> int:
