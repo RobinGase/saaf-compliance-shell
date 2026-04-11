@@ -52,9 +52,8 @@ saaf-shell verify-log --log /var/log/openshell/audit.jsonl
 
 | Machine | Role |
 |---|---|
-| **fedoraserver** | Runs the shell, Firecracker VMs, guardrails, router |
-| **maindev** | GPU compute — Ollama / vLLM-TurboQuant (RTX 3080) |
-| **laptop** | Client access via SSH over Tailscale |
+| **Single Linux host** | Runs Firecracker VMs, AgentFS, guardrails, router, and the local inference endpoint |
+| **Optional client machine** | Accesses the host over SSH or local terminal |
 
 ## Documentation
 

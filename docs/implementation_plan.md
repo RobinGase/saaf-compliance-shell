@@ -25,7 +25,7 @@ The shell is not a monolithic audit tool. It is a reusable enforcement layer tha
 | Privacy Router — local-only, two-tier classification (`sensitive` / `test`) | Three-tier classification, cloud fallback routing |
 | Append-only audit log with hash chaining | WORM storage, HSM signing, automated breach notification pipeline |
 | Manual data subject rights runbooks | Automated rights request workflows |
-| Ollama + `Randomblock1/nemotron-nano:8b` for inference (Phase 1-3 dev baseline) | vLLM-TurboQuant for production throughput (Phase 4+) |
+| Ollama + `Randomblock1/nemotron-nano:8b` for inference (Phase 1-3 single-host baseline) | vLLM-TurboQuant for production throughput (Phase 4+) |
 | `Vendor_Guard` as first integration target | Processor agreement template for external deployments |
 | Synthetic test fixtures and red team validation | Full CI/CD pipeline with automated compliance gates |
 
@@ -421,7 +421,7 @@ NeMo Guardrails uses an LLM internally for intent matching and self-check rails.
 models:
   - type: main
     engine: openai  # NeMo Guardrails "openai" engine works with any OpenAI-compatible API
-    model: Randomblock1/nemotron-nano:8b  # Current Ollama model tag on maindev
+    model: Randomblock1/nemotron-nano:8b  # Current Ollama model tag for the single-host baseline
     parameters:
       base_url: http://127.0.0.1:8089/v1  # via Privacy Router for user traffic
 
@@ -942,13 +942,13 @@ laptop ──SSH──▶ fedoraserver (100.115.144.22)
 maindev (100.87.245.60)
   │
   │  Model inference runs here:
-  │    Phase 1-3: Ollama serving Randomblock1/nemotron-nano:8b on port 8000
+  │    Phase 1-3: Ollama serving Randomblock1/nemotron-nano:8b on port 8000 on the same host
   │    Phase 4+:  vLLM-TurboQuant serving an 8B-class backend on port 8000
 ```
 
 ### RTX 3080 VRAM Budget (10GB)
 
-The 3080 has 10GB VRAM. The current Ollama dev baseline is `Randomblock1/nemotron-nano:8b` at about 5GB on disk; the originally planned `nemotron:8b-instruct-q4_K_M` tag was not available in Ollama.
+The current single-host Ollama baseline is `Randomblock1/nemotron-nano:8b` at about 5GB on disk; the originally planned `nemotron:8b-instruct-q4_K_M` tag was not available in Ollama.
 
 **Phase 1-3: Ollama (development and integration testing)**
 
@@ -1234,7 +1234,7 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 - [x] 1.4 Pre-built microVM kernel downloaded — */opt/saaf/kernels/vmlinux (21MB)*
 - [x] 1.5 Presidio: BSN custom recognizer + Dutch NLP model (spaCy nl_core_news_lg) — *22 tests passing*
 - [x] 1.6 NeMo Guardrails: config.yml + Colang 2.0 PII masking flows + presidio_redact action
-- [x] 1.7 Ollama + `Randomblock1/nemotron-nano:8b` on maindev (100.87.245.60:8000) — dev inference endpoint
+- [x] 1.7 Ollama + `Randomblock1/nemotron-nano:8b` on the local host (`127.0.0.1:8000`) — dev inference endpoint
 - [ ] 1.8 Verify fedoraserver-to-maindev connectivity over Tailscale (port 8000)
 - [x] 1.9 Test fixtures: synthetic PII samples, manifests, audit logs — *all fixtures complete (PII, manifests, audit JSONL)*
 

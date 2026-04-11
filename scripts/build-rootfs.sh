@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build the hardened base Firecracker rootfs on fedoraserver.
-# Run on fedoraserver as a sudo-capable user:
-#   bash scripts/build-rootfs-fedoraserver.sh
+# Build the hardened base Firecracker rootfs on the Linux host that runs Firecracker.
+# Run on the target Linux host as a sudo-capable user:
+#   bash scripts/build-rootfs.sh
 
 set -euo pipefail
 

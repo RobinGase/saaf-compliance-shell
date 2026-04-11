@@ -1,6 +1,6 @@
 """Privacy Router — local-only model routing for saaf-compliance-shell.
 
-All inference traffic goes to the local model endpoint on maindev.
+All inference traffic goes to a same-host model endpoint.
 No cloud fallback in v1. PII masking is handled by NeMo Guardrails
 before traffic reaches this router.
 """
@@ -15,7 +15,7 @@ import httpx
 from fastapi import FastAPI, Request, Response
 
 LOCAL_NIM_URL = os.environ.get(
-    "LOCAL_NIM_URL", "http://100.87.245.60:8000/v1/chat/completions"
+    "LOCAL_NIM_URL", "http://127.0.0.1:8000/v1/chat/completions"
 )
 AUDIT_LOG_PATH = os.environ.get(
     "AUDIT_LOG_PATH", "/var/log/openshell/audit.jsonl"
@@ -64,7 +64,7 @@ async def route(request: Request) -> Response:
 
     _log_route_decision(
         target="local_nim",
-        model="nemotron-3-8b-instruct",
+        model="Randomblock1/nemotron-nano:8b",
         latency_ms=latency_ms,
     )
 

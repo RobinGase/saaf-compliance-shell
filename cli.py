@@ -21,15 +21,17 @@ from modules.manifest.validator import validate_manifest
 DEFAULT_ROOTFS = Path("/opt/saaf/rootfs/ubuntu-24.04-python-base")
 DEFAULT_OVERLAY_DIR = Path("/opt/saaf/.agentfs")
 
-_AGENTFS = AgentFSClient(base_rootfs=DEFAULT_ROOTFS, overlay_dir=DEFAULT_OVERLAY_DIR)
+
+def _agentfs_client() -> AgentFSClient:
+    return AgentFSClient(base_rootfs=DEFAULT_ROOTFS, overlay_dir=DEFAULT_OVERLAY_DIR)
 
 
 def diff_session(agent_id: str) -> list[str]:
-    return _AGENTFS.diff_session(agent_id)
+    return _agentfs_client().diff_session(agent_id)
 
 
 def list_sessions() -> list[str]:
-    return _AGENTFS.list_sessions()
+    return _agentfs_client().list_sessions()
 
 
 def cmd_validate(args: argparse.Namespace) -> int:

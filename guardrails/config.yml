@@ -13,7 +13,7 @@ models:
     engine: openai
     model: Randomblock1/nemotron-nano:8b
     parameters:
-      base_url: http://100.87.245.60:8000/v1  # direct to maindev for guardrails' own checks
+      base_url: http://127.0.0.1:8000/v1  # direct local model access for guardrails' own checks
 
 rails:
   input:

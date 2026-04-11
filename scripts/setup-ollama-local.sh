@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Set up Ollama + Nemotron 8B on maindev for local inference.
-# Run this on maindev (Windows — use Git Bash or WSL).
-# Usage: bash scripts/setup-ollama-maindev.sh
+# Set up Ollama + Nemotron 8B on a single host for local inference.
+# Run this on the same host that serves Guardrails and the Privacy Router.
+# Usage: bash scripts/setup-ollama-local.sh
 
 set -euo pipefail
 
-echo "=== saaf-compliance-shell: Ollama setup on maindev ==="
+echo "=== saaf-compliance-shell: local Ollama setup ==="
 echo ""
 
 # 1. Check Ollama is installed
@@ -30,12 +30,12 @@ echo ""
 echo "--- Pulling Nemotron 8B ---"
 ollama pull Randomblock1/nemotron-nano:8b
 
-# 4. Configure Ollama to listen on all interfaces (for Tailscale access)
+# 4. Configure Ollama to listen on localhost for same-host access
 echo ""
 echo "--- Configuration ---"
-echo "To allow fedoraserver to reach Ollama over Tailscale, set:"
+echo "Set Ollama to the local OpenAI-compatible endpoint used by this repo:"
 echo ""
-echo "  OLLAMA_HOST=0.0.0.0:8000"
+echo "  OLLAMA_HOST=127.0.0.1:8000"
 echo ""
 echo "On Windows, set this as a system environment variable, then restart Ollama."
 echo "On Linux, add to /etc/systemd/system/ollama.service or your shell profile."
@@ -51,6 +51,6 @@ echo ""
 echo "=== Setup complete ==="
 echo ""
 echo "Next steps:"
-echo "  1. Set OLLAMA_HOST=0.0.0.0:8000 and restart Ollama"
-echo "  2. From fedoraserver, test: curl http://100.87.245.60:8000/v1/models"
-echo "  3. Firewall port 8000 to Tailscale interface only"
+echo "  1. Set OLLAMA_HOST=127.0.0.1:8000 and restart Ollama"
+echo "  2. Test locally: curl http://127.0.0.1:8000/v1/models"
+echo "  3. Point Guardrails self_check at http://127.0.0.1:8000/v1"
