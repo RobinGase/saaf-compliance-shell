@@ -1,0 +1,38 @@
+# Valid saaf-manifest.yaml — for testing manifest validation
+version: 1
+name: vendor-guard
+description: Vendor risk assessment agent
+
+agent:
+  entrypoint: python3 -m vendor_guard.agent
+  working_directory: /audit_workspace
+  env:
+    INFERENCE_URL: http://172.16.0.1:8088/v1/chat/completions
+
+data_classification:
+  default: sensitive
+
+filesystem:
+  read_write:
+    - /audit_workspace
+  read_only:
+    - /opt/vendor_guard
+
+network:
+  allow:
+    - host: gateway
+      port: 8088
+      purpose: nemo_guardrails
+
+resources:
+  vcpu_count: 2
+  mem_size_mib: 2048
+
+pii:
+  entities:
+    - PERSON
+    - EMAIL_ADDRESS
+    - BSN_NL
+
+audit:
+  retention_days: 2555

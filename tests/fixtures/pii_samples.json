@@ -1,0 +1,110 @@
+{
+  "should_detect": [
+    {
+      "id": "person_nl",
+      "text": "Het rapport is opgesteld door Jan de Vries van de afdeling financiën.",
+      "expected_entities": ["PERSON"],
+      "description": "Dutch name in audit context"
+    },
+    {
+      "id": "person_en",
+      "text": "The audit was reviewed by John Smith before submission.",
+      "expected_entities": ["PERSON"],
+      "description": "English name"
+    },
+    {
+      "id": "email_simple",
+      "text": "Neem contact op met j.devries@bedrijf.nl voor meer informatie.",
+      "expected_entities": ["PERSON", "EMAIL_ADDRESS"],
+      "description": "Dutch email with name"
+    },
+    {
+      "id": "bsn_valid_9digit",
+      "text": "De medewerker met BSN 111222333 heeft een declaratie ingediend.",
+      "expected_entities": ["BSN_NL"],
+      "description": "Valid BSN (passes 11-test: 1*9+1*8+1*7+2*6+2*5+2*4+3*3+3*2+3*-1 = 9+8+7+12+10+8+9+6-3 = 66, 66%11=0)"
+    },
+    {
+      "id": "bsn_valid_with_dots",
+      "text": "BSN nummer: 111.222.333 staat geregistreerd in het systeem.",
+      "expected_entities": ["BSN_NL"],
+      "description": "Valid BSN with dot separators"
+    },
+    {
+      "id": "bsn_valid_with_dashes",
+      "text": "Burgerservicenummer 111-222-333 is gekoppeld aan het dossier.",
+      "expected_entities": ["BSN_NL"],
+      "description": "Valid BSN with dash separators"
+    },
+    {
+      "id": "combined_pii",
+      "text": "Jan de Vries (j.devries@audit.nl, BSN 111222333) is betrokken bij zaak 144.",
+      "expected_entities": ["PERSON", "EMAIL_ADDRESS", "BSN_NL"],
+      "description": "Multiple PII types in one text"
+    },
+    {
+      "id": "bsn_invalid_11test_low_confidence",
+      "text": "Het nummer 123456789 werd aangetroffen in het document.",
+      "expected_entities": ["BSN_NL"],
+      "description": "Fails 11-test but looks like BSN — should flag at lower confidence"
+    },
+    {
+      "id": "pii_in_audit_finding",
+      "text": "Uit de controle blijkt dat Pieter Jansen een factuur van €12.000 heeft ingediend die niet overeenkomt met de leveranciersregistratie.",
+      "expected_entities": ["PERSON"],
+      "description": "PII embedded in audit finding — realistic use case"
+    }
+  ],
+  "should_not_detect": [
+    {
+      "id": "clean_audit_text",
+      "text": "De jaarrekening over 2025 is gecontroleerd conform de geldende wet- en regelgeving.",
+      "expected_entities": [],
+      "description": "Clean Dutch audit text — no PII"
+    },
+    {
+      "id": "clean_legal_reference",
+      "text": "Artikel 5, lid 1, sub c van de AVG vereist dataminimalisatie bij verwerking.",
+      "expected_entities": [],
+      "description": "Legal reference — no PII"
+    },
+    {
+      "id": "short_number_not_bsn",
+      "text": "Het factuurnummer is 4421 en de ordernummer is 7823.",
+      "expected_entities": [],
+      "description": "Short numbers that should not be flagged as BSN"
+    },
+    {
+      "id": "phone_number_not_bsn",
+      "text": "Bel ons op 020-1234567 voor vragen over het rapport.",
+      "expected_entities": [],
+      "description": "Phone number — should not be flagged as BSN"
+    }
+  ],
+  "edge_cases": [
+    {
+      "id": "bsn_obfuscated_spaces",
+      "text": "Het nummer 1 1 1 2 2 2 3 3 3 is mogelijk een BSN.",
+      "expected_entities": ["BSN_NL"],
+      "description": "BSN with spaces between digits — edge case",
+      "v1_limitation": true,
+      "note": "May not be detected in v1 — spaced digits are hard to pattern match"
+    },
+    {
+      "id": "pii_base64",
+      "text": "De naam is opgeslagen als SmFuIGRlIFZyaWVz in het systeem.",
+      "expected_entities": ["PERSON"],
+      "description": "Base64-encoded name (Jan de Vries) — known v1 limitation",
+      "v1_limitation": true,
+      "note": "v1 does not decode base64 before scanning. Documented for v2."
+    },
+    {
+      "id": "unicode_homoglyph",
+      "text": "Jаn de Vries heeft het rapport ondertekend.",
+      "expected_entities": ["PERSON"],
+      "description": "Cyrillic 'а' replacing Latin 'a' — known v1 limitation",
+      "v1_limitation": true,
+      "note": "Presidio may not catch homoglyph substitution. Documented for v2."
+    }
+  ]
+}

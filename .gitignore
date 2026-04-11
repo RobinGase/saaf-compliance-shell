@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Rust
+target/
+Cargo.lock
+
+# Firecracker artifacts
+vmlinux
+rootfs/
+*.ext4
+vm_config.*.json
+
+# AgentFS
+.agentfs/
+
+# Audit logs (sensitive — never commit)
+*.jsonl
+/var/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Secrets
+.env
+*.key
+*.pem
+credentials.*
+
+# Test artifacts
+tests/output/

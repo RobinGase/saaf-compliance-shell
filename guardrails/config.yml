@@ -1,0 +1,27 @@
+# NeMo Guardrails server config — saaf-compliance-shell
+# Phase 1-3: maindev runs Ollama. Phase 4+: maindev runs vLLM-TurboQuant.
+# Both serve OpenAI-compatible API on the same endpoint — config does not change.
+
+models:
+  - type: main
+    engine: openai
+    model: nemotron:8b-instruct-q4_K_M
+    parameters:
+      base_url: http://127.0.0.1:8089/v1  # via Privacy Router for user traffic
+
+  - type: self_check
+    engine: openai
+    model: nemotron:8b-instruct-q4_K_M
+    parameters:
+      base_url: http://100.87.245.60:8000/v1  # direct to maindev for guardrails' own checks
+
+rails:
+  input:
+    flows:
+      - mask pii in user input
+      - self check input
+      - check topical relevance
+  output:
+    flows:
+      - mask pii in model output
+      - self check output

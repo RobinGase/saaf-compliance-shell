@@ -1,0 +1,19 @@
+# Invalid saaf-manifest.yaml — for testing manifest validation errors
+# Missing: version, agent.entrypoint, resources
+name: broken-manifest
+
+data_classification:
+  default: unknown_tier  # invalid — must be "sensitive" or "test"
+
+filesystem:
+  read_write: []  # empty — must have at least /audit_workspace
+
+network:
+  allow:
+    - host: 8.8.8.8  # public DNS — should be rejected
+      port: 53
+      purpose: dns_lookup
+
+pii:
+  entities:
+    - INVALID_ENTITY  # not a recognized entity type

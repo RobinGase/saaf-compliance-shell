@@ -1,0 +1,31 @@
+import action presidio_redact
+
+flow mask pii in user input
+  """Redact PII from user message before it reaches the model."""
+  $user_message = $last_user_message
+  $result = await presidio_redact(text=$user_message, entities=["PERSON", "EMAIL_ADDRESS", "BSN_NL"], threshold=0.6)
+
+  if $result.entity_count > 0
+    $last_user_message = $result.sanitized_text
+    log "pii_redaction" entity_count=$result.entity_count entities=$result.entities_found direction="input"
+
+  if $result.has_unmasked_pii
+    bot refuse "Input contains personal data that could not be fully redacted."
+    abort
+
+flow mask pii in model output
+  """Process model output: return unredacted to auditor, log redacted to audit trail."""
+  $bot_message = $last_bot_message
+
+  # Branch B: Redact for audit log
+  $redacted = await presidio_redact(text=$bot_message, entities=["PERSON", "EMAIL_ADDRESS", "BSN_NL"], threshold=0.6)
+  await log_reasoning_trace(
+    unredacted=false,
+    text=$redacted.sanitized_text,
+    entity_count=$redacted.entity_count,
+    entities=$redacted.entities_found
+  )
+
+  # Branch A: Return unredacted to auditor session
+  # $last_bot_message is NOT modified — auditor sees full reasoning
+  # PII in CoT is the lawful purpose of the audit
