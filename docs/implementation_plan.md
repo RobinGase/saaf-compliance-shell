@@ -1250,12 +1250,12 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 
 - [ ] 1.1 Verify the Linux host has KVM support
 - [ ] 1.2 Install Firecracker v1.15.0 + AgentFS v0.6.4 on the Linux host
-- [ ] 1.3 Build base rootfs: debootstrap Ubuntu 24.04, strip unnecessary tools, bake in Python + agent deps
+- [x] 1.3 Build base rootfs: debootstrap Ubuntu 24.04, strip unnecessary tools, bake in Python + agent deps — *built on the Linux host at `/opt/saaf/rootfs/ubuntu-24.04-python-base`*
 - [x] 1.4 Pre-built microVM kernel downloaded — */opt/saaf/kernels/vmlinux (21MB)*
 - [x] 1.5 Presidio: BSN custom recognizer + Dutch NLP model (spaCy nl_core_news_lg) — *22 tests passing*
 - [x] 1.6 NeMo Guardrails: config.yml + Colang 2.0 PII masking flows + presidio_redact action
 - [x] 1.7 Ollama + `Randomblock1/nemotron-nano:8b` on the local host (`127.0.0.1:8000`) — dev inference endpoint
-- [ ] 1.8 Verify local model endpoint connectivity on `127.0.0.1:8000`
+- [x] 1.8 Verify local model endpoint connectivity on `127.0.0.1:8000` — *model endpoint reachable; modular branch uses localhost defaults*
 - [x] 1.9 Test fixtures: synthetic PII samples, manifests, audit logs — *all fixtures complete (PII, manifests, audit JSONL)*
 
 **Phase 2 — Core enforcement (week 3-5)**
@@ -1266,12 +1266,23 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 - [x] 2.4 Tamper-evident audit log: SHA-256 hash-chained JSONL, multi-session, verify_log — *11 tests passing*
 - [x] 2.5 NeMo Guardrails: self-check input rail + topical control config coverage — *config/tests in place*
 - [x] 2.6 Privacy Router: FastAPI, local-only routing to the local model endpoint, route logging — *6 tests passing*
+- [x] 2.1 Firecracker VM launcher: config generation, runtime orchestration, manifest-driven boot path — *unit-tested + Linux-host smoke boot verified*
+- [x] 2.2 TAP network policy: iptables rules — guest can only reach host:8088 (guardrails) — *unit-tested + cleanup verified on Linux host*
+- [x] 2.3 AgentFS integration: overlay per session, diff command, NFS export lifecycle — *unit-tested + manual `agentfs diff` smoke check*
+- [x] 2.4 Tamper-evident audit log: SHA-256 hash-chained JSONL, multi-session, verify_log — *11 tests passing*
+- [x] 2.5 NeMo Guardrails: self-check input rail + topical control config coverage — *config/tests in place*
+- [x] 2.6 Privacy Router: FastAPI, local-only routing to the local model endpoint, route logging — *6 tests passing*
 - [x] 2.7 saaf-manifest.yaml schema + validator — *11 tests passing*
 
 **Phase 3 — Integration (week 5-7)**
 
+<<<<<<< HEAD
 - [ ] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → local model → audit log
 - [ ] 3.2 Guardrails circular dependency validation (self-check direct to the local model, user traffic via router)
+=======
+- [ ] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → maindev → audit log — *basic Fedora smoke complete: VM boot + AgentFS DB + audit chain verified; full guardrails/router path still pending*
+- [ ] 3.2 Guardrails circular dependency validation (self-check direct to maindev, user traffic via router)
+>>>>>>> 8bbb8fb (Fix packaging and agentfs smoke-test gaps)
 - [ ] 3.3 AgentFS diff validation: confirm all guest mutations are captured and diffable
 - [ ] 3.4 Red team test suite execution (all four attack categories)
 - [ ] 3.5 Vendor_Guard integration: add manifest, bake into rootfs, test full pipeline

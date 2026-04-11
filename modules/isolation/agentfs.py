@@ -20,6 +20,8 @@ class AgentFSClient:
         self.base_rootfs = Path(base_rootfs)
         self.overlay_dir = Path(overlay_dir)
         self.binary = binary
+        if self.overlay_dir.name != ".agentfs":
+            raise ValueError("AgentFS overlay_dir must be named .agentfs")
 
     @property
     def _workdir(self) -> Path:

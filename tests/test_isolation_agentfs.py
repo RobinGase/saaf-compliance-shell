@@ -90,3 +90,11 @@ def test_create_session_wraps_subprocess_failure(tmp_path: Path, monkeypatch: py
 
     with pytest.raises(AgentFSError, match="agentfs missing"):
         client.create_session("session-001")
+
+
+def test_overlay_dir_must_use_agentfs_name(tmp_path: Path) -> None:
+    base_rootfs = tmp_path / "rootfs"
+    base_rootfs.mkdir()
+
+    with pytest.raises(ValueError, match="must be named .agentfs"):
+        AgentFSClient(base_rootfs=base_rootfs, overlay_dir=tmp_path / "custom-overlay")
