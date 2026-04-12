@@ -1,0 +1,32 @@
+version: 1
+name: vendor-guard-pyprobe
+
+agent:
+  entrypoint: /opt/vendor-guard-venv/bin/python -c "from pathlib import Path; Path('/audit_workspace/vendor_guard/output/py-ok.txt').parent.mkdir(parents=True, exist_ok=True); Path('/audit_workspace/vendor_guard/output/py-ok.txt').write_text('ok')"
+  working_directory: /audit_workspace/vendor_guard
+  env:
+    INFERENCE_URL: http://172.16.0.1:8088/v1/chat/completions
+
+data_classification:
+  default: sensitive
+
+filesystem:
+  read_write:
+    - /audit_workspace
+
+network:
+  allow:
+    - host: gateway
+      port: 8088
+      purpose: nemo_guardrails
+
+resources:
+  vcpu_count: 2
+  mem_size_mib: 2048
+
+pii:
+  entities:
+    - PERSON
+
+audit:
+  retention_days: 2555

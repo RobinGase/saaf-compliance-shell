@@ -3,12 +3,18 @@ import nemoguardrails.library.self_check.output_check
 
 flow input rails $input_text
   mask pii in user input $input_text
-  self check input
+  $input_safe = await SelfCheckInputDirectAction()
+  if not $input_safe
+    bot refuse "This request cannot be processed safely."
+    abort
   check topical relevance $input_text
 
 flow output rails $output_text
   mask pii in model output
-  self check output
+  $output_safe = await SelfCheckOutputDirectAction()
+  if not $output_safe
+    bot refuse "The generated response could not be returned safely."
+    abort
 
 flow mask pii in user input $input_text
   """Redact PII from user message before it reaches the model."""

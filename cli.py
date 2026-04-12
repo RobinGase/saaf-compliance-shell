@@ -14,8 +14,11 @@ import sys
 from pathlib import Path
 
 from modules.audit.log import verify_log
+from modules.guardrails.red_team import run_red_team_suite
+from modules.guardrails.routing_check import run_guardrails_routing_validation
 from modules.isolation.agentfs import AgentFSClient
 from modules.isolation.runtime import run_manifest
+from modules.isolation.smoke import run_vm_probe
 from modules.manifest.validator import validate_manifest
 
 DEFAULT_ROOTFS = Path("/opt/saaf/rootfs/ubuntu-24.04-python-base")
@@ -110,9 +113,27 @@ def cmd_sessions(args: argparse.Namespace) -> int:
 
 
 def cmd_test(args: argparse.Namespace) -> int:
-    """Run red team test suite (Phase 3+)."""
-    print("ERROR: 'test' requires the red team suite (Phase 3). Not yet implemented.")
-    return 2
+    """Run repeatable integration and adversarial suites."""
+    try:
+        if args.suite == "vm-probe":
+            result = run_vm_probe(
+                manifest_path=args.manifest,
+                overlay_dir=args.overlay_dir,
+                audit_log_path=args.audit_log,
+            )
+        elif args.suite == "guardrails-routing":
+            result = run_guardrails_routing_validation(args.config_dir)
+        elif args.suite == "red-team":
+            result = run_red_team_suite(cases_path=args.cases, endpoint=args.endpoint)
+        else:
+            print(f"FAIL — unknown suite: {args.suite}")
+            return 1
+    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
+        print(f"FAIL — {exc}")
+        return 1
+
+    print(result)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -150,6 +171,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_test = sub.add_parser("test", help="Run red team test suite (Phase 3+)")
     p_test.add_argument("--manifest", "-m", required=True, help="Path to saaf-manifest.yaml")
     p_test.add_argument("--suite", "-s", required=True, help="Test suite name")
+    p_test.add_argument("--overlay-dir", default=str(DEFAULT_OVERLAY_DIR), help="AgentFS overlay directory for vm-probe")
+    p_test.add_argument("--audit-log", default="/tmp/saaf-probe-audit.jsonl", help="Audit log path for vm-probe")
+    p_test.add_argument("--config-dir", default="guardrails", help="Guardrails config directory for guardrails-routing")
+    p_test.add_argument("--cases", default=str(Path("tests") / "fixtures" / "red_team_cases.json"), help="Path to red team case file")
+    p_test.add_argument("--endpoint", default="http://127.0.0.1:8088/v1/chat/completions", help="Guardrails endpoint for red-team suite")
     p_test.set_defaults(func=cmd_test)
 
     return parser

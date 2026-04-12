@@ -55,5 +55,9 @@ audit:
     )
 
     assert session_id.startswith("vendor-guard-")
+    start_nfs_index = next(i for i, call in enumerate(calls) if call[0] == "start_nfs")
+    setup_index = next(i for i, call in enumerate(calls) if call[0] == "commands" and call[2] is True)
+
+    assert setup_index < start_nfs_index
     assert any(call[0] == "start_nfs" and call[1] == session_id for call in calls)
     assert any(call[0] == "stop_nfs" for call in calls)

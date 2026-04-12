@@ -22,7 +22,7 @@ def test_guardrails_input_flows_include_self_check_and_topical_control() -> None
 
     assert "flow input rails $input_text" in content
     assert "mask pii in user input" in content
-    assert "self check input" in content
+    assert "SelfCheckInputDirectAction" in content
     assert "check topical relevance" in content
 
 

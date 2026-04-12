@@ -108,8 +108,50 @@ class TestPhase2Commands:
         assert "session-001" in out
         assert "session-002" in out
 
-    def test_test_not_implemented(self, capsys):
+    def test_test_runs_vm_probe_suite(self, monkeypatch, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["test", "--manifest", "dummy.yaml", "--suite", "vm-probe"])
+
+        monkeypatch.setattr(
+            "cli.run_vm_probe",
+            lambda manifest_path, overlay_dir, audit_log_path: {
+                "session_id": "guest-probe-abc123",
+                "diff": ["A f /audit_workspace/response.json"],
+            },
+        )
+
+        rc = args.func(args)
+
+        assert rc == 0
+        assert "guest-probe-abc123" in capsys.readouterr().out
+
+    def test_test_runs_guardrails_routing_suite(self, monkeypatch, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["test", "--manifest", "dummy.yaml", "--suite", "guardrails-routing"])
+
+        monkeypatch.setattr("cli.run_guardrails_routing_validation", lambda config_dir: {"router_hits": 1, "direct_hits": 1})
+
+        rc = args.func(args)
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "router_hits" in out
+        assert "direct_hits" in out
+
+    def test_test_runs_red_team_suite(self, monkeypatch, capsys):
         parser = build_parser()
         args = parser.parse_args(["test", "--manifest", "dummy.yaml", "--suite", "red-team"])
+
+        monkeypatch.setattr("cli.run_red_team_suite", lambda cases_path, endpoint: {"total": 4, "passed": 4, "failed": 0})
+
         rc = args.func(args)
-        assert rc == 2
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "'total': 4" in out or '"total": 4' in out
+
+    def test_test_rejects_unknown_suite(self, capsys):
+        parser = build_parser()
+        args = parser.parse_args(["test", "--manifest", "dummy.yaml", "--suite", "unknown-suite"])
+        rc = args.func(args)
+        assert rc == 1

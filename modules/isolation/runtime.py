@@ -68,8 +68,8 @@ def run_manifest(
     nfs_process = None
 
     try:
-        nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port, db_path=db_path, workdir=Path(overlay_dir).parent)
         _run_commands(setup_commands)
+        nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port, db_path=db_path, workdir=Path(overlay_dir).parent)
         launch_firecracker(config)
         audit.record("vm_exit", session_id=session_id, status="ok")
     finally:
