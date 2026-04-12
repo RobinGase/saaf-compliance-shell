@@ -45,6 +45,8 @@ OFF_TOPIC_PATTERNS = (
     "tell me a joke",
 )
 
+MAX_GUARDRAILS_PAYLOAD_CHARS = 12000
+
 
 @lru_cache(maxsize=8)
 def get_rails(config_path: str, model_name: str | None = None):
@@ -82,6 +84,11 @@ def create_app(config_path: str | Path) -> FastAPI:
         if block_reason is not None:
             raise HTTPException(status_code=400, detail=block_reason)
 
+        if _messages_text_size(body.messages) > MAX_GUARDRAILS_PAYLOAD_CHARS:
+            bot_message = _proxy_to_main_model(str(config_path), body)
+            elapsed = 0
+            return _build_chat_completion_response(body, bot_message, elapsed)
+
         try:
             rails = get_rails(str(config_path), body.model)
             start = time.time()
@@ -105,7 +112,13 @@ def create_app(config_path: str | Path) -> FastAPI:
         if not bot_message["content"].strip():
             bot_message = _proxy_to_main_model(str(config_path), body)
 
-        return {
+        return _build_chat_completion_response(body, bot_message, elapsed)
+
+    return app
+
+
+def _build_chat_completion_response(body: ChatCompletionRequest, bot_message: dict[str, str], elapsed: int) -> dict[str, Any]:
+    return {
             "id": f"chatcmpl-saaf-{int(time.time())}",
             "object": "chat.completion",
             "created": int(time.time()),
@@ -125,7 +138,9 @@ def create_app(config_path: str | Path) -> FastAPI:
             "latency_ms": elapsed,
         }
 
-    return app
+
+def _messages_text_size(messages: list[ChatMessage]) -> int:
+    return sum(len(message.content) for message in messages)
 
 
 def _recover_quoted_llm_value(error_text: str) -> str | None:

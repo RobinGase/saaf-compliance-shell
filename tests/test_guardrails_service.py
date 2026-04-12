@@ -265,3 +265,43 @@ def test_chat_completions_falls_back_to_main_model_when_guardrails_returns_empty
     assert resp.status_code == 200
     assert captured["url"] == "http://127.0.0.1:8089/v1/chat/completions"
     assert resp.json()["choices"][0]["message"]["content"] == '{"name": "Acme"}'
+
+
+def test_chat_completions_skips_guardrails_generation_for_oversized_payload(monkeypatch, tmp_path: Path) -> None:
+    app = create_app(config_path=tmp_path / "guardrails")
+    client = TestClient(app)
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "choices": [
+                    {
+                        "message": {"role": "assistant", "content": "proxied"},
+                        "finish_reason": "stop",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr("modules.guardrails.service.resolve_main_model_config", lambda config_path: ("test-main", "http://127.0.0.1:8089/v1/chat/completions"))
+    monkeypatch.setattr("modules.guardrails.service.httpx.post", lambda url, json=None, timeout=None: FakeResponse())
+
+    called = {"count": 0}
+
+    def fake_get_rails(*args, **kwargs):
+        called["count"] += 1
+        raise AssertionError("LLMRails should not be used for oversized payload")
+
+    monkeypatch.setattr("modules.guardrails.service.get_rails", fake_get_rails)
+
+    huge_prompt = "X" * 20000
+    resp = client.post(
+        "/v1/chat/completions",
+        json={"model": "Randomblock1/nemotron-nano:8b", "messages": [{"role": "user", "content": huge_prompt}]},
+    )
+
+    assert resp.status_code == 200
+    assert called["count"] == 0
+    assert resp.json()["choices"][0]["message"]["content"] == "proxied"

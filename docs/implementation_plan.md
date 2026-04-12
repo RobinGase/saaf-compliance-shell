@@ -1296,7 +1296,7 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 - [ ] 3.2 Guardrails circular dependency validation (self-check direct to the local model, user traffic via router)
 - [x] 3.3 AgentFS diff validation: confirm all guest mutations are captured and diffable — *repeatable Fedora smoke now passes via `scripts/run_vm_probe.py`*
 - [ ] 3.4 Red team test suite execution (all four attack categories) — *repeatable `saaf-shell test --suite red-team` path now exists and the initial Fedora baseline now passes 4 of 4 seeded cases; expand to the full planned attack set before closing this item*
-- [ ] 3.5 Vendor_Guard integration: add manifest, bake into rootfs, test full pipeline — *manifest, wrapper, entrypoint, and throwaway guest rootfs path now exist; workload starts in the VM, reaches profile extraction, and records guest logs in AgentFS; remaining blockers are agent response handling and final output generation inside the workload*
+- [ ] 3.5 Vendor_Guard integration: add manifest, bake into rootfs, test full pipeline — *manifest, wrapper, entrypoint, and throwaway guest rootfs path now exist; Vendor_Guard starts inside the VM, reaches vendor profile extraction, and records guest logs in AgentFS (`saaf_wrapper.log`, `saaf_entrypoint.stdout`, `saaf_entrypoint.stderr`); current remaining blocker is consistent completion of specialist agent and output generation stages*
 - [ ] 3.6 Remote access test: SSH into the Linux host and run the full pipeline
 
 **Phase 4 — Hardening + Inference Upgrade (week 7-9)**
@@ -1313,6 +1313,7 @@ Current testing state:
 - `saaf-shell test --suite vm-probe` is the working repeatable shell proof path.
 - `saaf-shell test --suite red-team` is now the active policy hardening driver.
 - `guardrails-routing` remains a targeted NeMo behavior follow up rather than a shell bring up issue.
+- `vendor_guard` now runs far enough inside the shell to produce guest visible logs, but not yet the final scorecard, gap register, or memo outputs.
 - [ ] 4.6 vLLM-TurboQuant: source build on the Linux host (CUDA compatibility test)
 - [ ] 4.7 vLLM-TurboQuant: benchmark vs Ollama (throughput, latency, concurrent request handling)
 - [ ] 4.8 Swap inference backend: Ollama → vLLM-TurboQuant on the Linux host (same port, transparent to shell)
