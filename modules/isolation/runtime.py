@@ -43,7 +43,7 @@ def run_manifest(
     manifest_path = Path(manifest_path)
     session_id = f"{manifest.get('name', 'saaf')}-{uuid4().hex[:8]}"
     agentfs = AgentFSClient(base_rootfs=rootfs_path, overlay_dir=overlay_dir)
-    agentfs.create_session(session_id)
+    db_path = agentfs.create_session(session_id)
 
     setup_commands = build_setup_commands(session_id)
     teardown_commands = build_teardown_commands(session_id)
@@ -68,7 +68,7 @@ def run_manifest(
     nfs_process = None
 
     try:
-        nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port)
+        nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port, db_path=db_path, workdir=Path(overlay_dir).parent)
         _run_commands(setup_commands)
         launch_firecracker(config)
         audit.record("vm_exit", session_id=session_id, status="ok")

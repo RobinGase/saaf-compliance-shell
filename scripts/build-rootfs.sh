@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 ROOTFS_DIR="${ROOTFS_DIR:-/opt/saaf/rootfs/ubuntu-24.04-python-base}"
 ROOTFS_RELEASE="${ROOTFS_RELEASE:-noble}"
 ROOTFS_MIRROR="${ROOTFS_MIRROR:-http://archive.ubuntu.com/ubuntu}"
@@ -102,27 +104,11 @@ python=${PYTHON_VERSION}
 built_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
 
-sudo_run tee "${ROOTFS_DIR}/init" > /dev/null <<'EOF'
-#!/bin/sh
-set -eu
-
-mountpoint -q /proc || mount -t proc proc /proc
-mountpoint -q /sys || mount -t sysfs sysfs /sys
-mountpoint -q /dev || mount -t devtmpfs devtmpfs /dev
-mkdir -p /dev/pts /run /tmp /audit_workspace
-mountpoint -q /dev/pts || mount -t devpts devpts /dev/pts
-mountpoint -q /run || mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run
-mountpoint -q /tmp || mount -t tmpfs -o mode=1777,nosuid,nodev tmpfs /tmp
-
-hostname saaf-vm
-ip link set lo up 2>/dev/null || true
-ip link set eth0 up 2>/dev/null || true
-
-cd /audit_workspace 2>/dev/null || cd /
-exec /bin/sh
-EOF
-
+sudo_run cp "${SCRIPT_DIR}/rootfs-init.sh" "${ROOTFS_DIR}/init"
 sudo_run chmod +x "${ROOTFS_DIR}/init"
+sudo_run mkdir -p "${ROOTFS_DIR}/usr/local/bin"
+sudo_run cp "${SCRIPT_DIR}/guest-probe.py" "${ROOTFS_DIR}/usr/local/bin/guest-probe.py"
+sudo_run chmod +x "${ROOTFS_DIR}/usr/local/bin/guest-probe.py"
 
 log "Rootfs ready at ${ROOTFS_DIR}"
 sudo_run du -sh "${ROOTFS_DIR}"

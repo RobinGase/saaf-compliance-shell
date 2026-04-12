@@ -98,3 +98,48 @@ def test_overlay_dir_must_use_agentfs_name(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="must be named .agentfs"):
         AgentFSClient(base_rootfs=base_rootfs, overlay_dir=tmp_path / "custom-overlay")
+
+
+def test_start_nfs_server_uses_overlay_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    overlay_dir = tmp_path / ".agentfs"
+    overlay_dir.mkdir()
+    db_path = overlay_dir / "session-001.db"
+    db_path.write_text("")
+
+    calls = []
+
+    class FakeProcess:
+        pid = 1234
+
+    def fake_popen(cmd, cwd, stdout, stderr, text):
+        calls.append((cmd, cwd))
+        return FakeProcess()
+
+    monkeypatch.setattr("modules.isolation.agentfs.subprocess.Popen", fake_popen)
+
+    from modules.isolation.agentfs import start_nfs_server
+
+    process = start_nfs_server(
+        session_id="session-001",
+        host="172.16.0.1",
+        port=11111,
+        workdir=overlay_dir.parent,
+        db_path=db_path,
+    )
+
+    assert process.pid == 1234
+    assert calls == [
+        (
+            [
+                "/usr/local/bin/agentfs",
+                "serve",
+                "nfs",
+                "--bind",
+                "172.16.0.1",
+                "--port",
+                "11111",
+                "session-001",
+            ],
+            overlay_dir.parent,
+        )
+    ]

@@ -545,11 +545,11 @@ def is_valid_bsn(digits: str) -> bool:
 
 ### Guardrails Server Deployment
 
-NeMo Guardrails runs as a server process, exposing an OpenAI-compatible endpoint:
+The shell now uses a repo-owned FastAPI wrapper around `LLMRails` for the local Guardrails endpoint instead of NeMo's generic server wrapper. This keeps NeMo Guardrails in the stack while avoiding the wrapper's config-id and single-config issues.
 
 ```bash
-# Start guardrails server — this is what the agent talks to
-nemoguardrails server --config /opt/audit-ai/guardrails/ --port 8088 --host 127.0.0.1
+# Start guardrails service — this is what the agent talks to
+python scripts/start-guardrails-local.py
 ```
 
 The agent sends standard OpenAI-format requests to `127.0.0.1:8088`. Guardrails intercepts, runs input rails (PII masking → injection check → topical check), forwards to the Privacy Router, runs output rails (PII masking → self-check), and returns the sanitized response. The agent is unaware of the enforcement.
@@ -896,6 +896,28 @@ Firecracker requires Linux with KVM support. In the modular single-host baseline
 | **Single Linux host** | Primary shell host — Firecracker, AgentFS, guardrails, router, Ollama | Must have KVM support (`/dev/kvm`). |
 | **Optional dev machine** | Code editing and remote access | Can SSH into the Linux host if needed. |
 | **Mock mode** | Local dev without Firecracker | `saaf-shell run --mock` skips VM boot, runs agent as local subprocess, logs what *would* be enforced. Allows testing guardrails, router, and audit logging without KVM. |
+
+Python compatibility note:
+
+- The validated Guardrails/router/Ollama flow currently runs on Python 3.12.
+- The current `nemoguardrails` + `langchain` stack is not reliable on Python 3.14; Fedora's default 3.14 runtime hit import/runtime failures during Linux-host smoke attempts.
+- Supported project range is currently `>=3.11,<3.14` until the upstream stack is confirmed on 3.14.
+- The Fedora local-host smoke now succeeds with a Python 3.12 venv: `:8088 -> :8089 -> maindev:8000` returns a normal assistant response.
+
+Current VM-debug note:
+
+- The original prebuilt kernel failed to mount the AgentFS NFS root and panicked before `/init`.
+- A rebuilt minimal kernel with NFS-root support now boots past that earlier panic, and the real VM probe now returns a session id instead of dying at boot.
+- TAP policy was updated to allow the guest to reach the AgentFS NFS export on `172.16.0.1:11111` in addition to Guardrails on `172.16.0.1:8088`.
+- The large inline kernel-arg probe command has been replaced with a tracked guest script (`/usr/local/bin/guest-probe.py`) plus guest-side breadcrumbs (`init.log`, `probe.log`).
+- The VM now boots, exits cleanly, and records valid audit sessions with recent probe ids including `guest-probe-7ea88cc3`, `guest-probe-29aba474`, and `guest-probe-002f9ca9`.
+- AgentFS-backed guest mutation capture is now confirmed for the full probe path: `/audit_workspace/init.log`, `/audit_workspace/probe.log`, and `/audit_workspace/response.json` appear in the overlay for `guest-probe-002f9ca9`.
+- The working path required three concrete fixes:
+  - rebuilt minimal Firecracker kernel with NFS-root support,
+  - TAP policy allowing guest access to both NFS (`172.16.0.1:11111`) and Guardrails (`172.16.0.1:8088`),
+  - AgentFS NFS export started with the session name from the overlay parent directory (not the raw DB path).
+- The repo-owned Guardrails service on Fedora must be started from the repo path so it resolves `/tmp/saaf-shell-smoke312/guardrails` as its config directory.
+- A repeatable repo-owned smoke runner now exists: `scripts/run_vm_probe.py`. On Fedora it succeeds against `tests/fixtures/manifest_probe.yaml` and returns a session plus diff that includes `init.log`, `probe.log`, and `response.json`.
 
 ### Branch Strategy and CI/CD
 
@@ -1260,25 +1282,19 @@ Each module must be tested with adversarial inputs, not just happy-path checks.
 
 **Phase 2 — Core enforcement (week 3-5)**
 
-- [x] 2.1 Firecracker VM launcher: config generation, runtime orchestration, manifest-driven boot path — *unit-tested*
-- [x] 2.2 TAP network policy: iptables rules — guest can only reach host:8088 (guardrails) — *unit-tested*
-- [x] 2.3 AgentFS integration: overlay per session, diff command, NFS export lifecycle — *unit-tested*
-- [x] 2.4 Tamper-evident audit log: SHA-256 hash-chained JSONL, multi-session, verify_log — *11 tests passing*
-- [x] 2.5 NeMo Guardrails: self-check input rail + topical control config coverage — *config/tests in place*
-- [x] 2.6 Privacy Router: FastAPI, local-only routing to the local model endpoint, route logging — *6 tests passing*
 - [x] 2.1 Firecracker VM launcher: config generation, runtime orchestration, manifest-driven boot path — *unit-tested + Linux-host smoke boot verified*
 - [x] 2.2 TAP network policy: iptables rules — guest can only reach host:8088 (guardrails) — *unit-tested + cleanup verified on Linux host*
 - [x] 2.3 AgentFS integration: overlay per session, diff command, NFS export lifecycle — *unit-tested + manual `agentfs diff` smoke check*
 - [x] 2.4 Tamper-evident audit log: SHA-256 hash-chained JSONL, multi-session, verify_log — *11 tests passing*
-- [x] 2.5 NeMo Guardrails: self-check input rail + topical control config coverage — *config/tests in place*
-- [x] 2.6 Privacy Router: FastAPI, local-only routing to the local model endpoint, route logging — *6 tests passing*
+- [x] 2.5 NeMo Guardrails: self-check input rail + topical control config coverage — *config/tests in place + repo-owned `:8088` service returning OpenAI-compatible responses locally*
+- [x] 2.6 Privacy Router: FastAPI, local-only routing to the local model endpoint, route logging — *6 tests passing + local service smoke verified with Ollama*
 - [x] 2.7 saaf-manifest.yaml schema + validator — *11 tests passing*
 
 **Phase 3 — Integration (week 5-7)**
 
-- [ ] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → local model → audit log — *basic Linux-host smoke complete: VM boot + AgentFS DB + audit chain verified; full guardrails/router path still pending*
+- [x] 3.1 End-to-end: manifest → build rootfs → boot VM → agent → guardrails → router → local model → audit log — *validated with `manifest_probe.yaml`: guest boots inside Firecracker, reaches the repo-owned Guardrails service on `:8088`, routes through `:8089` to the model endpoint, records valid audit events, and produces AgentFS-visible files (`init.log`, `probe.log`, `response.json`)*
 - [ ] 3.2 Guardrails circular dependency validation (self-check direct to the local model, user traffic via router)
-- [ ] 3.3 AgentFS diff validation: confirm all guest mutations are captured and diffable
+- [x] 3.3 AgentFS diff validation: confirm all guest mutations are captured and diffable — *repeatable Fedora smoke now passes via `scripts/run_vm_probe.py`*
 - [ ] 3.4 Red team test suite execution (all four attack categories)
 - [ ] 3.5 Vendor_Guard integration: add manifest, bake into rootfs, test full pipeline
 - [ ] 3.6 Remote access test: SSH into the Linux host and run the full pipeline

@@ -42,7 +42,7 @@ audit:
     monkeypatch.setattr("modules.isolation.runtime.AgentFSClient.create_session", lambda self, session_id: calls.append(("create", session_id)))
     monkeypatch.setattr(
         "modules.isolation.runtime.start_nfs_server",
-        lambda session_id, host, port, binary="/usr/local/bin/agentfs": calls.append(("start_nfs", session_id, host, port, binary)) or object(),
+        lambda session_id, host, port, db_path=None, binary="/usr/local/bin/agentfs", workdir="/opt/saaf": calls.append(("start_nfs", session_id, host, port, db_path, binary, workdir)) or object(),
     )
     monkeypatch.setattr("modules.isolation.runtime.stop_nfs_server", lambda process: calls.append(("stop_nfs", process)))
 

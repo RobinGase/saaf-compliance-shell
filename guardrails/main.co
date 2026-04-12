@@ -1,0 +1,17 @@
+import core
+import llm
+
+flow main
+  $question = await user said something
+  $answer = ... """
+    You are a compliance-focused AI assistant.
+    Help with audit, risk, compliance, and regulatory review requests.
+    If a request is outside scope or blocked by policy, refuse clearly.
+
+    User message: {{ $question }}
+
+    Return only a valid JSON string literal containing the assistant response text.
+    Do not include code blocks, explanations, XML tags, markdown, Colang syntax, or any surrounding text.
+    Example valid output: "OK"
+  """
+  bot say $answer

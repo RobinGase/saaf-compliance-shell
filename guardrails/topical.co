@@ -1,9 +1,0 @@
-flow check topical relevance
-  """Block prompts that are not related to audit operations."""
-  $allowed_topics = ["financial audit", "compliance review", "risk assessment", "vendor evaluation", "regulatory analysis", "document review"]
-
-  $is_relevant = await self_check_topical(user_input=$last_user_message, allowed_topics=$allowed_topics)
-
-  if not $is_relevant
-    bot refuse "This request is outside the scope of audit operations."
-    abort

@@ -59,6 +59,7 @@ def start_nfs_server(
     host: str,
     port: int,
     *,
+    db_path: str | Path | None = None,
     binary: str = "/usr/local/bin/agentfs",
     workdir: str | Path = "/opt/saaf",
 ) -> subprocess.Popen[str]:

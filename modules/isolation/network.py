@@ -9,6 +9,7 @@ import hashlib
 HOST_GATEWAY = "172.16.0.1"
 GUEST_IP = "172.16.0.2"
 GUARDRAILS_PORT = 8088
+NFS_PORT = 11111
 
 
 class NetworkPolicyError(ValueError):
@@ -42,6 +43,22 @@ def build_setup_commands(session_id: str) -> list[list[str]]:
         ["ip", "tuntap", "add", "dev", tap, "mode", "tap"],
         ["ip", "addr", "add", f"{HOST_GATEWAY}/24", "dev", tap],
         ["ip", "link", "set", tap, "up"],
+        ["sysctl", "-w", f"net.ipv4.conf.{tap}.route_localnet=1"],
+        [
+            "iptables",
+            "-A",
+            "INPUT",
+            "-i",
+            tap,
+            "-p",
+            "tcp",
+            "-d",
+            HOST_GATEWAY,
+            "--dport",
+            str(NFS_PORT),
+            "-j",
+            "ACCEPT",
+        ],
         [
             "iptables",
             "-A",
@@ -108,11 +125,27 @@ def build_teardown_commands(session_id: str) -> list[list[str]]:
             "-p",
             "tcp",
             "-d",
+            HOST_GATEWAY,
+            "--dport",
+            str(NFS_PORT),
+            "-j",
+            "ACCEPT",
+        ],
+        [
+            "iptables",
+            "-D",
+            "INPUT",
+            "-i",
+            tap,
+            "-p",
+            "tcp",
+            "-d",
             "127.0.0.1",
             "--dport",
             str(GUARDRAILS_PORT),
             "-j",
             "ACCEPT",
         ],
+        ["sysctl", "-w", f"net.ipv4.conf.{tap}.route_localnet=0"],
         ["ip", "link", "del", tap],
     ]

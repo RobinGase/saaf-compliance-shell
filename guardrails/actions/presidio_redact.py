@@ -4,6 +4,8 @@ Handles Dutch names, email addresses, and BSN numbers (with 11-test validation).
 """
 
 import re
+
+from nemoguardrails.actions import action
 from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
@@ -91,6 +93,7 @@ _analyzer = _build_analyzer()
 _anonymizer = AnonymizerEngine()
 
 
+@action(name="PresidioRedactAction", execute_async=True)
 async def presidio_redact(
     text: str,
     entities: list[str] | None = None,

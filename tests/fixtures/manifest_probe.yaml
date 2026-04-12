@@ -1,0 +1,35 @@
+version: 1
+name: guest-probe
+description: Probe guest entrypoint for VM-to-guardrails smoke
+
+agent:
+  entrypoint: /usr/local/bin/guest-probe.py
+  working_directory: /audit_workspace
+  env:
+    INFERENCE_URL: http://172.16.0.1:8088/v1/chat/completions
+    OUTPUT_PATH: /audit_workspace/response.json
+    PROBE_LOG_PATH: /audit_workspace/probe.log
+
+data_classification:
+  default: sensitive
+
+filesystem:
+  read_write:
+    - /audit_workspace
+
+network:
+  allow:
+    - host: gateway
+      port: 8088
+      purpose: nemo_guardrails
+
+resources:
+  vcpu_count: 2
+  mem_size_mib: 2048
+
+pii:
+  entities:
+    - PERSON
+
+audit:
+  retention_days: 2555

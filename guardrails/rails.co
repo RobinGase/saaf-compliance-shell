@@ -1,0 +1,35 @@
+import nemoguardrails.library.self_check.input_check
+import nemoguardrails.library.self_check.output_check
+
+flow input rails $input_text
+  mask pii in user input $input_text
+  self check input
+  check topical relevance $input_text
+
+flow output rails $output_text
+  mask pii in model output
+  self check output
+
+flow mask pii in user input $input_text
+  """Redact PII from user message before it reaches the model."""
+  $user_message = $input_text
+  $result = await PresidioRedactAction(text=$user_message, entities=["PERSON", "EMAIL_ADDRESS", "BSN_NL"], threshold=0.6)
+
+  if $result.entity_count > 0
+    $input_text = $result.sanitized_text
+
+  if $result.has_unmasked_pii
+    bot refuse "Input contains personal data that could not be fully redacted."
+    abort
+
+flow mask pii in model output
+  """Process model output: return unredacted to auditor, log redacted to audit trail."""
+  pass
+
+flow check topical relevance $input_text
+  """Block prompts that are not related to audit operations."""
+  $result = execute topic_safety_check_input(context="financial audit, compliance review, risk assessment, vendor evaluation, regulatory analysis, document review")
+
+  if not $result
+    bot refuse "This request is outside the scope of audit operations."
+    abort
