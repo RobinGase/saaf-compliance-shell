@@ -51,7 +51,7 @@ def build_vm_config(
     }
 
 
-def launch_firecracker(config: dict, binary: str = "firecracker") -> int:
+def launch_firecracker(config: dict, binary: str = "firecracker", console_log_path: str | Path | None = None) -> int:
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as tmp:
         json.dump(config, tmp)
         config_path = tmp.name
@@ -63,6 +63,11 @@ def launch_firecracker(config: dict, binary: str = "firecracker") -> int:
             capture_output=True,
             text=True,
         )
+        if console_log_path is not None:
+            Path(console_log_path).write_text(
+                f"STDOUT\n{completed.stdout}\nSTDERR\n{completed.stderr}\n",
+                encoding="utf-8",
+            )
         return completed.returncode
     finally:
         Path(config_path).unlink(missing_ok=True)

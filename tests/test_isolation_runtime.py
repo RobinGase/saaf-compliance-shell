@@ -38,7 +38,7 @@ audit:
     calls: list[tuple] = []
 
     monkeypatch.setattr("modules.isolation.runtime._run_commands", lambda commands, check=True: calls.append(("commands", commands, check)))
-    monkeypatch.setattr("modules.isolation.runtime.launch_firecracker", lambda config: calls.append(("launch", config)) or 0)
+    monkeypatch.setattr("modules.isolation.runtime.launch_firecracker", lambda config, console_log_path=None: calls.append(("launch", config, console_log_path)) or 0)
     monkeypatch.setattr("modules.isolation.runtime.AgentFSClient.create_session", lambda self, session_id: calls.append(("create", session_id)))
     monkeypatch.setattr(
         "modules.isolation.runtime.start_nfs_server",

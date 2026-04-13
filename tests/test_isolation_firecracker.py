@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from modules.isolation.firecracker import build_vm_config
+from modules.isolation.firecracker import build_vm_config, launch_firecracker
 
 
 def test_build_vm_config_uses_manifest_resources(tmp_path: Path) -> None:
@@ -31,3 +31,22 @@ def test_build_vm_config_uses_manifest_resources(tmp_path: Path) -> None:
     assert "saaf.env.INFERENCE_URL=http://172.16.0.1:8088/v1/chat/completions" in config["boot-source"]["boot_args"]
     assert config["network-interfaces"][0]["host_dev_name"] == "fc-session-001"
     assert config["machine-config"] == {"vcpu_count": 2, "mem_size_mib": 2048}
+
+
+def test_launch_firecracker_writes_console_log(tmp_path: Path, monkeypatch) -> None:
+    console_log = tmp_path / "guest.console.log"
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = "guest stdout"
+        stderr = "guest stderr"
+
+    monkeypatch.setattr(
+        "modules.isolation.firecracker.subprocess.run",
+        lambda *args, **kwargs: FakeCompleted(),
+    )
+
+    rc = launch_firecracker({"boot-source": {}}, console_log_path=console_log)
+
+    assert rc == 0
+    assert console_log.read_text(encoding="utf-8") == "STDOUT\nguest stdout\nSTDERR\nguest stderr\n"
