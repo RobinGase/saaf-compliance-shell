@@ -110,9 +110,10 @@ A manifest that does not validate never boots. `saaf-shell validate` returns the
 
 1. DNAT `172.16.0.1:8088` → `127.0.0.1:8088` on the host's guardrails port.
 2. ACCEPT on the input chain for the TAP → guardrails path.
-3. DROP everything else on that TAP interface.
+3. DROP everything else on that TAP interface (INPUT chain).
+4. DROP FORWARD traffic in both directions on the TAP, so a host with `net.ipv4.ip_forward=1` can't route guest packets out through another interface.
 
-No masquerade rule is installed; there is no route to the internet. `validate_v1_network_rules` rejects any manifest that asks for anything beyond `gateway:8088`.
+No masquerade rule is installed; there is no route to the internet. `validate_v1_network_rules` rejects any manifest that asks for anything beyond `gateway:8088`, and `ensure_ip_forward_disabled` refuses to start when the host kernel has IPv4 forwarding enabled unless the operator sets `SAAF_ALLOW_IP_FORWARD=1` after confirming the FORWARD rules are in place.
 
 **`runtime.py`** — the session orchestrator. Runs: manifest validate → AgentFS DB create → NFS export start → TAP + iptables up → Firecracker boot → (workload runs) → Firecracker exit → iptables teardown → NFS stop → `session_end` audit event. Teardown runs in a `finally` block so a crashed session still cleans up network state.
 

@@ -93,30 +93,47 @@ class AuditLog:
             return record
 
 
-def _read_chain_tail(log_path: Path) -> tuple[str | None, int, str]:
-    """Scan the log forward and return (session_id, next_seq, last_hash).
+def _read_chain_tail(log_path: Path) -> tuple[str | None, int, str, int | None]:
+    """Scan the log forward and return (session_id, next_seq, last_hash, truncate_at).
 
     Used by out-of-process writers (the privacy router) to append records
-    that link into the existing hash chain. A truncated trailing record
-    from a crash is ignored. If the log is absent or empty, returns
-    (None, 0, GENESIS_PREV_HASH).
+    that link into the existing hash chain. If the log is absent or empty,
+    returns (None, 0, GENESIS_PREV_HASH, None).
+
+    ``truncate_at`` is the byte offset at which a crash-truncated tail
+    begins — either a line that failed to parse or a line without a
+    terminating newline. The caller should truncate the file to that
+    offset before appending, otherwise the new event would be concatenated
+    onto the partial record and permanently poison the chain.
     """
     if not log_path.exists():
-        return None, 0, GENESIS_PREV_HASH
+        return None, 0, GENESIS_PREV_HASH, None
 
     session_id: str | None = None
     next_seq = 0
     last_hash = GENESIS_PREV_HASH
+    truncate_at: int | None = None
 
-    with open(log_path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
+    with open(log_path, "rb") as f:
+        offset = 0
+        for raw in f:
+            line_start = offset
+            offset += len(raw)
+
+            if not raw.endswith(b"\n"):
+                truncate_at = line_start
+                break
+
+            stripped = raw.strip()
+            if not stripped:
                 continue
+
             try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                break  # partial tail from a crash — stop here
+                rec = json.loads(stripped.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                truncate_at = line_start
+                break
+
             if rec.get("event_type") == "session_start":
                 session_id = rec.get("session_id")
             seq = rec.get("seq")
@@ -126,7 +143,7 @@ def _read_chain_tail(log_path: Path) -> tuple[str | None, int, str]:
             if isinstance(event_hash, str):
                 last_hash = event_hash
 
-    return session_id, next_seq, last_hash
+    return session_id, next_seq, last_hash, truncate_at
 
 
 def append_chained_event(log_path: str | Path, event_type: str, **fields) -> dict:
@@ -144,7 +161,14 @@ def append_chained_event(log_path: str | Path, event_type: str, **fields) -> dic
         if sys.platform != "win32":
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
         try:
-            session_id, next_seq, prev_hash = _read_chain_tail(log_path)
+            session_id, next_seq, prev_hash, truncate_at = _read_chain_tail(log_path)
+
+            # Drop a crash-truncated tail so the new event lands on a clean
+            # boundary. Without this, the next verify_log would still trip
+            # on the partial line even though this append itself was clean.
+            if truncate_at is not None:
+                f.truncate(truncate_at)
+                f.flush()
 
             # A new session resets the chain — matches verify_log behavior
             if event_type == "session_start":

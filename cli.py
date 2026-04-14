@@ -17,6 +17,7 @@ from modules.audit.log import verify_log
 from modules.guardrails.red_team import run_red_team_suite
 from modules.guardrails.routing_check import run_guardrails_routing_validation
 from modules.isolation.agentfs import AgentFSClient
+from modules.isolation.network import NetworkPolicyError, validate_v1_network_rules
 from modules.isolation.runtime import run_manifest
 from modules.isolation.smoke import run_vm_probe
 from modules.manifest.validator import validate_manifest
@@ -38,20 +39,32 @@ def list_sessions() -> list[str]:
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    """Validate a saaf-manifest.yaml file."""
+    """Validate a saaf-manifest.yaml file.
+
+    Runs schema validation first, then the v1 network-policy check that
+    ``run_manifest`` enforces at launch. Without the second step the CLI
+    would green-light manifests that are guaranteed to fail at runtime.
+    """
     result = validate_manifest(args.manifest)
 
-    if result.valid:
-        print(f"OK — {args.manifest} is valid")
-        if result.manifest:
-            print(f"  name: {result.manifest.get('name', '?')}")
-            print(f"  version: {result.manifest.get('version', '?')}")
-        return 0
+    if not result.valid:
+        print(f"INVALID — {len(result.errors)} error(s) in {args.manifest}:\n")
+        for err in result.errors:
+            print(f"  [{err.field}] {err.message}")
+        return 1
 
-    print(f"INVALID — {len(result.errors)} error(s) in {args.manifest}:\n")
-    for err in result.errors:
-        print(f"  [{err.field}] {err.message}")
-    return 1
+    if result.manifest:
+        try:
+            validate_v1_network_rules(result.manifest)
+        except NetworkPolicyError as exc:
+            print(f"INVALID — {args.manifest}:\n  [network] {exc}")
+            return 1
+
+    print(f"OK — {args.manifest} is valid")
+    if result.manifest:
+        print(f"  name: {result.manifest.get('name', '?')}")
+        print(f"  version: {result.manifest.get('version', '?')}")
+    return 0
 
 
 def cmd_verify_log(args: argparse.Namespace) -> int:

@@ -34,6 +34,33 @@ class TestValidateCommand:
         out = capsys.readouterr().out
         assert "INVALID" in out
 
+    def test_schema_valid_but_forbidden_network_is_rejected(self, tmp_path, capsys):
+        """validate must refuse manifests that run_manifest would refuse at launch.
+
+        Without this, the CLI would print "OK" on a manifest that opens
+        an extra egress rule, and the operator would only find out when
+        the VM actually starts.
+        """
+        base = (FIXTURES_DIR / "manifest_valid.yaml").read_text(encoding="utf-8")
+        altered = base.replace(
+            "    - host: gateway\n      port: 8088\n      purpose: nemo_guardrails\n",
+            (
+                "    - host: gateway\n      port: 8088\n      purpose: nemo_guardrails\n"
+                "    - host: 8.8.8.8\n      port: 53\n      purpose: dns\n"
+            ),
+        )
+        manifest = tmp_path / "manifest.yaml"
+        manifest.write_text(altered, encoding="utf-8")
+
+        parser = build_parser()
+        args = parser.parse_args(["validate", "--manifest", str(manifest)])
+        rc = args.func(args)
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "INVALID" in out
+        assert "[network]" in out
+        assert "gateway:8088" in out
+
 
 class TestVerifyLogCommand:
     def test_valid_log(self, capsys):

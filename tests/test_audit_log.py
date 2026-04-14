@@ -192,6 +192,54 @@ class TestAppendChainedEvent:
         assert rec["prev_hash"] == GENESIS_PREV_HASH
         assert "event_hash" in rec
 
+    def test_heals_partial_json_tail_from_crash(self, tmp_log):
+        """A crash-truncated trailing line must be discarded before the next append.
+
+        Otherwise the new event is concatenated onto the partial record and
+        every subsequent verify_log stays broken. The fix keeps the chain
+        linked from the last intact event.
+        """
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        last_good = log.record("file_create", path="/audit_workspace/x.txt")
+
+        with open(tmp_log, "a", encoding="utf-8") as f:
+            f.write('{"seq":99,"event_type":"file_cre\n')
+
+        appended = append_chained_event(
+            tmp_log, "route_decision", target="local_nim", model="m"
+        )
+
+        assert appended["prev_hash"] == last_good["event_hash"]
+        assert appended["seq"] == last_good["seq"] + 1
+
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message
+
+    def test_heals_missing_trailing_newline(self, tmp_log):
+        """A record without a terminating newline is treated as partial.
+
+        Parseable JSON on its own line but without `\\n` still signals
+        "write may not have been flushed." Safer to discard it than to
+        let the next append concatenate onto it and break the chain.
+        """
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        last_good = log.record("file_create", path="/audit_workspace/x.txt")
+
+        with open(tmp_log, "a", encoding="utf-8") as f:
+            f.write('{"seq":50,"event_type":"noop"}')
+
+        appended = append_chained_event(
+            tmp_log, "route_decision", target="local_nim", model="m"
+        )
+
+        assert appended["prev_hash"] == last_good["event_hash"]
+        assert appended["seq"] == last_good["seq"] + 1
+
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message
+
     def test_interleaved_writers_keep_chain(self, tmp_log):
         """AuditLog and append_chained_event must interleave without breaking the chain.
 

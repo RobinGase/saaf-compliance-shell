@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 from uuid import uuid4
@@ -18,6 +19,7 @@ from .network import (
     HOST_GATEWAY,
     build_setup_commands,
     build_teardown_commands,
+    ensure_ip_forward_disabled,
     tap_device_name,
     validate_v1_network_rules,
 )
@@ -45,6 +47,7 @@ def run_manifest(
 
     manifest = result.manifest
     validate_v1_network_rules(manifest)
+    ensure_ip_forward_disabled(allow_env=os.environ.get("SAAF_ALLOW_IP_FORWARD"))
 
     manifest_path = Path(manifest_path)
     session_id = f"{manifest.get('name', 'saaf')}-{uuid4().hex[:8]}"
