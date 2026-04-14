@@ -35,6 +35,14 @@ FABRICATED_CASES = [
     # Dutch: AVG is the Dutch name for GDPR; "Artikel" is the Dutch
     # word for Article. Same 99-article ceiling applies.
     "Op grond van AVG Artikel 500 moet de verwerker de gegevens verwijderen.",
+    # Dutch reverse phrasing: "artikel N van de AVG".
+    "Zie artikel 500 van de AVG voor de volledige tekst.",
+    # Dutch reverse phrasing without definite article.
+    "Per artikel 200 van AVG moet de gegevensverwerker een register bijhouden.",
+    # Dutch reverse phrasing with "van het" (used with neuter nouns).
+    "Op basis van artikel 800 van het EU AI Act is het systeem verboden.",
+    # Dutch reverse phrasing against DORA.
+    "Volgens artikel 100 van DORA moet de entiteit een ICT-register bijhouden.",
 ]
 
 
@@ -66,6 +74,10 @@ VALID_CASES = [
     "GDPR Art. 6(1)(a) permits processing based on consent.",
     # Dutch in-range citation — AVG + Artikel maps to GDPR's 99-article ceiling.
     "AVG Artikel 5 stelt de beginselen van rechtmatige verwerking.",
+    # Dutch reverse phrasing, in-range.
+    "Zie artikel 30 van de AVG voor de registerplicht.",
+    # Dutch reverse phrasing against DORA, in-range.
+    "Artikel 5 van DORA beschrijft het ICT-risicokader.",
 ]
 
 

@@ -83,12 +83,15 @@ def _alias_group(framework: str) -> str:
 # group "num". The framework label is carried outside the regex —
 # one compiled pattern per framework, assembled below. `Artikel` is
 # included alongside `Art.`/`Article` so Dutch-language citations
-# against AVG/GDPR are matched by the same rule.
+# against AVG/GDPR are matched by the same rule. The reverse-phrasing
+# connective accepts both English `of (the)` and Dutch `van (de|het)`
+# so "artikel 500 van de AVG" is caught alongside "Article 500 of GDPR".
 def _framework_pattern(framework: str) -> re.Pattern[str]:
     alias = _alias_group(framework)
+    connective = r"(?:of|van)\s+(?:the\s+|de\s+|het\s+)?"
     pattern = (
         rf"(?:{alias}\s*(?:Art\.?|Article|Artikel)\s*(?P<num_a>\d+)"
-        rf"|(?:Art\.?|Article|Artikel)\s*(?P<num_b>\d+)\s*of\s+(?:the\s+)?{alias})"
+        rf"|(?:Art\.?|Article|Artikel)\s*(?P<num_b>\d+)\s*{connective}{alias})"
     )
     return re.compile(pattern, re.IGNORECASE)
 
