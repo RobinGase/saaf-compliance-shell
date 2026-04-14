@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.citation_rule import citation_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="CitationCheckAction", execute_async=True)
 async def citation_check(text: str) -> dict:
@@ -23,4 +25,7 @@ async def citation_check(text: str) -> dict:
             the regulation's known maximum.
         samples: list[str] — up to 3 fabricated citations, for logging.
     """
-    return citation_report(text)
+    report = citation_report(text)
+    if report.get("has_fabricated_citation"):
+        emit_rail_fire("fabricated_citation", report)
+    return report

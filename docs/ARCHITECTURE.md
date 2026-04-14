@@ -148,6 +148,15 @@ Append-only JSONL at `/var/log/openshell/audit.jsonl`. Writer (`AuditLog`) holds
 
 Each record: canonical JSON of `{seq, ts, session_id, event, …fields}`, SHA-256 hashed, with the previous record's hash embedded as `prev_hash`. The first record of a session is a `session_start` with a genesis `prev_hash` (all zeros) — this is how multi-session logs are handled, and how the verifier detects session boundaries vs. chain breaks.
 
+Event types currently written to the chain:
+
+- `session_start` / `session_end` — runtime lifecycle, via `AuditLog`.
+- `route_decision` — privacy router appends one per forwarded request via `append_chained_event`.
+- `guardrails_preflight_block` — the service's regex preflight rejected a request (injection / off-topic).
+- `guardrails_rail_fire` — an output rail matched. Written from two places: the Colang-driven action wrappers in `guardrails/actions/*.py` (source `colang_flow`) and the service's bypass paths (source `oversized_bypass` / `empty_rail_bypass`).
+- `guardrails_bypass_scan` — a bypass path proxied to the main model; the output-rail scan ran and nothing fired.
+- `guardrails_bypass_refusal` — a bypass path proxied to the main model, a rail fired, and the response was replaced with a refusal.
+
 `saaf-shell verify-log` walks the chain top-to-bottom, re-hashing each record and comparing to the next record's `prev_hash`. It reports three possible outcomes:
 
 - **OK** — chain intact through EOF.

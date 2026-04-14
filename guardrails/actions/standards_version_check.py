@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.standards_version_rule import standards_version_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="StandardsVersionCheckAction", execute_async=True)
 async def standards_version_check(text: str) -> dict:
@@ -21,4 +23,7 @@ async def standards_version_check(text: str) -> dict:
         fabrication_count: int — number of fabrications detected.
         samples: list[str] — up to 3 offending phrases, for logging.
     """
-    return standards_version_report(text)
+    report = standards_version_report(text)
+    if report.get("has_fabricated_version"):
+        emit_rail_fire("fabricated_standards_version", report)
+    return report

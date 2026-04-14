@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.stale_date_rule import stale_date_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="StaleDateCheckAction", execute_async=True)
 async def stale_date_check(text: str) -> dict:
@@ -22,4 +24,7 @@ async def stale_date_check(text: str) -> dict:
         max_age_years: int — threshold currently applied (default 2).
         samples: list[str] — up to 3 stale phrases, for logging.
     """
-    return stale_date_report(text)
+    report = stale_date_report(text)
+    if report.get("has_stale_attestation"):
+        emit_rail_fire("stale_attestation", report)
+    return report

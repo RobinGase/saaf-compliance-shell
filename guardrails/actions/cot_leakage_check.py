@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.cot_leakage_rule import cot_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="CoTLeakageCheckAction", execute_async=True)
 async def cot_leakage_check(text: str) -> dict:
@@ -21,4 +23,7 @@ async def cot_leakage_check(text: str) -> dict:
         marker_count: int — total markers detected.
         samples: list[str] — up to 3 marker strings, for logging.
     """
-    return cot_report(text)
+    report = cot_report(text)
+    if report.get("has_cot_leakage"):
+        emit_rail_fire("cot_leakage", report)
+    return report

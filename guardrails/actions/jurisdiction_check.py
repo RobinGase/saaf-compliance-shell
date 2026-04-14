@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.jurisdiction_rule import jurisdiction_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="JurisdictionCheckAction", execute_async=True)
 async def jurisdiction_check(text: str) -> dict:
@@ -21,4 +23,7 @@ async def jurisdiction_check(text: str) -> dict:
         mismatch_count: int — number of mismatches detected.
         samples: list[str] — up to 3 offending phrases, for logging.
     """
-    return jurisdiction_report(text)
+    report = jurisdiction_report(text)
+    if report.get("has_jurisdiction_mismatch"):
+        emit_rail_fire("jurisdiction_mismatch", report)
+    return report

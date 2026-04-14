@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.absolutism_rule import absolutism_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="AbsolutismCheckAction", execute_async=True)
 async def absolutism_check(text: str) -> dict:
@@ -21,4 +23,7 @@ async def absolutism_check(text: str) -> dict:
         claim_count: int — total absolutist phrases detected.
         samples: list[str] — up to 3 phrases, for logging.
     """
-    return absolutism_report(text)
+    report = absolutism_report(text)
+    if report.get("has_absolutist_claim"):
+        emit_rail_fire("absolutist_claim", report)
+    return report

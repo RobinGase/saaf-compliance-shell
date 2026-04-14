@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.currency_rule import currency_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="CurrencyCheckAction", execute_async=True)
 async def currency_check(text: str) -> dict:
@@ -21,4 +23,7 @@ async def currency_check(text: str) -> dict:
         mismatch_count: int — number of mismatches detected.
         samples: list[str] — up to 3 offending phrases, for logging.
     """
-    return currency_report(text)
+    report = currency_report(text)
+    if report.get("has_currency_mismatch"):
+        emit_rail_fire("currency_mismatch", report)
+    return report

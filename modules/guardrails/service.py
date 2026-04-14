@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
@@ -14,11 +15,22 @@ import yaml
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from modules.audit.log import append_chained_event
+from modules.guardrails.output_scan import RailFiring, scan_output
+
 try:
     from nemoguardrails import LLMRails, RailsConfig
 except ModuleNotFoundError:  # pragma: no cover
     LLMRails = None
     RailsConfig = None
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_AUDIT_LOG_PATH = "/var/log/openshell/audit.jsonl"
+BYPASS_REFUSAL = (
+    "Response refused: automated output-rail review detected a policy "
+    "violation. See the audit log for the rail(s) that fired."
+)
 
 
 class ChatMessage(BaseModel):
@@ -83,12 +95,15 @@ def create_app(config_path: str | Path) -> FastAPI:
         user_text = body.messages[-1].content if body.messages else ""
         block_reason = _preflight_block_reason(user_text)
         if block_reason is not None:
+            _emit_audit("guardrails_preflight_block", reason=block_reason, model=body.model)
             raise HTTPException(status_code=400, detail=block_reason)
 
         if _messages_text_size(body.messages) > MAX_GUARDRAILS_PAYLOAD_CHARS:
             bot_message = _proxy_to_main_model(str(config_path), body)
-            elapsed = 0
-            return _build_chat_completion_response(body, bot_message, elapsed)
+            bot_message = _apply_output_rails(
+                bot_message, source="oversized_bypass", model=body.model
+            )
+            return _build_chat_completion_response(body, bot_message, elapsed=0)
 
         try:
             rails = get_rails(str(config_path), body.model)
@@ -112,10 +127,54 @@ def create_app(config_path: str | Path) -> FastAPI:
 
         if not bot_message["content"].strip():
             bot_message = _proxy_to_main_model(str(config_path), body)
+            bot_message = _apply_output_rails(
+                bot_message, source="empty_rail_bypass", model=body.model
+            )
 
         return _build_chat_completion_response(body, bot_message, elapsed)
 
     return app
+
+
+def _emit_audit(event_type: str, **fields: Any) -> None:
+    """Append one hash-chained audit event. Never raise out of the request path."""
+    log_path = os.environ.get("AUDIT_LOG_PATH", DEFAULT_AUDIT_LOG_PATH)
+    try:
+        append_chained_event(log_path, event_type, **fields)
+    except OSError as exc:
+        logger.warning("Could not write %s to audit log: %s", event_type, exc)
+
+
+def _apply_output_rails(
+    bot_message: dict[str, str], source: str, model: str
+) -> dict[str, str]:
+    """Run the pure-Python output rails against a response that skipped the Colang pipeline.
+
+    Used on the two bypass paths (oversized payload, empty-rails fallback)
+    where the response otherwise reaches the client without ever touching
+    the ten output rails. Every fire lands in the audit chain; any fire
+    replaces the response content with a canned refusal.
+    """
+    text = bot_message.get("content", "")
+    firings: list[RailFiring] = scan_output(text)
+    if not firings:
+        _emit_audit("guardrails_bypass_scan", source=source, model=model, fired=False)
+        return bot_message
+    for firing in firings:
+        _emit_audit(
+            "guardrails_rail_fire",
+            source=source,
+            model=model,
+            rail=firing.name,
+            report=firing.report,
+        )
+    _emit_audit(
+        "guardrails_bypass_refusal",
+        source=source,
+        model=model,
+        rails=[f.name for f in firings],
+    )
+    return {"role": bot_message.get("role", "assistant"), "content": BYPASS_REFUSAL}
 
 
 def _build_chat_completion_response(body: ChatCompletionRequest, bot_message: dict[str, str], elapsed: int) -> dict[str, Any]:

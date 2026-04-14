@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.verdict_rule import verdict_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="VerdictCheckAction", execute_async=True)
 async def verdict_check(text: str) -> dict:
@@ -22,4 +24,7 @@ async def verdict_check(text: str) -> dict:
         unfounded_count: int — verdicts without a nearby evidence anchor.
         samples: list[str] — up to 3 unfounded verdict phrases, for logging.
     """
-    return verdict_report(text)
+    report = verdict_report(text)
+    if report.get("has_unfounded_verdict"):
+        emit_rail_fire("unfounded_verdict", report)
+    return report

@@ -11,6 +11,8 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.cve_rule import cve_report
 
+from ._audit_emit import emit_rail_fire
+
 
 @action(name="CVECheckAction", execute_async=True)
 async def cve_check(text: str) -> dict:
@@ -21,4 +23,7 @@ async def cve_check(text: str) -> dict:
         fabrication_count: int — number of fabrications detected.
         samples: list[str] — up to 3 offending phrases, for logging.
     """
-    return cve_report(text)
+    report = cve_report(text)
+    if report.get("has_fabricated_cve"):
+        emit_rail_fire("fabricated_cve", report)
+    return report
