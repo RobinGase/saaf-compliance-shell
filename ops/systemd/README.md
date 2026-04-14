@@ -10,6 +10,8 @@ to journald.
 |---|---|
 | `saaf-guardrails.service` | Guardrails HTTP service on `127.0.0.1:8088` |
 | `saaf-router.service` | Privacy router on `127.0.0.1:8089`, depends on guardrails |
+| `saaf-log-retention.service` | Oneshot pruner for rotated `audit.jsonl.*` archives |
+| `saaf-log-retention.timer` | Daily 03:00 trigger for the pruner |
 | `services.env.example` | Environment file template (install as `/etc/saaf-shell/services.env`) |
 
 Both units run as a dedicated `saaf` service account, read their configuration
@@ -38,13 +40,27 @@ install -m 0640 -o root -g saaf \
 # Edit /etc/saaf-shell/services.env to set LOCAL_NIM_URL for this host.
 
 # 3. Install unit files
-install -m 0644 ops/systemd/saaf-guardrails.service /etc/systemd/system/
-install -m 0644 ops/systemd/saaf-router.service     /etc/systemd/system/
+install -m 0644 ops/systemd/saaf-guardrails.service      /etc/systemd/system/
+install -m 0644 ops/systemd/saaf-router.service          /etc/systemd/system/
+install -m 0644 ops/systemd/saaf-log-retention.service   /etc/systemd/system/
+install -m 0644 ops/systemd/saaf-log-retention.timer     /etc/systemd/system/
 systemctl daemon-reload
 
 # 4. Start + enable on boot
 systemctl enable --now saaf-guardrails saaf-router
+# Optional: enable daily retention sweep (set SAAF_AUDIT_RETENTION_DAYS first).
+systemctl enable --now saaf-log-retention.timer
 ```
+
+## Audit-log retention
+
+`saaf-log-retention.timer` fires `saaf-log-retention.service` once a day at
+03:00 (±15 min jitter). The service runs `scripts/enforce_audit_retention.py`,
+which deletes files matching `audit.jsonl.*` under `$SAAF_AUDIT_LOG_DIR`
+older than `$SAAF_AUDIT_RETENTION_DAYS`. The live `audit.jsonl` is never
+touched — rotation is a separate, operator-controlled step (see
+`docs/RUNBOOK.md`). Set `SAAF_AUDIT_RETENTION_DAYS=0` (the default in
+`services.env.example`) to disable pruning.
 
 ## Verify
 

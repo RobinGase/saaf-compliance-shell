@@ -1,0 +1,27 @@
+[Unit]
+Description=SAAF audit-log retention pruner (deletes rotated archives past the retention window)
+# Runs only when manual rotation has produced audit.jsonl.* archives to prune.
+# The live audit.jsonl is never touched; see scripts/enforce_audit_retention.py.
+
+[Service]
+Type=oneshot
+User=saaf
+Group=saaf
+EnvironmentFile=/etc/saaf-shell/services.env
+WorkingDirectory=${SAAF_SHELL_ROOT}
+ExecStart=${SAAF_SHELL_ROOT}/.venv/bin/python ${SAAF_SHELL_ROOT}/scripts/enforce_audit_retention.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=saaf-log-retention
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/openshell
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true

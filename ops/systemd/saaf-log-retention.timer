@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily SAAF audit-log retention sweep
+Documentation=file:///opt/saaf/shell/docs/RUNBOOK.md
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=15min
+Unit=saaf-log-retention.service
+
+[Install]
+WantedBy=timers.target

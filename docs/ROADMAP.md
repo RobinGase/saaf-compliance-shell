@@ -32,7 +32,7 @@ The modular branch is considered "proven enough to support real testing work." I
 1. **Remote-host run.** Full pipeline over SSH from a workstation to the Linux host. Smoke path exists manually; needs to be a repeatable command.
 2. **Guardrails circular-dependency validation.** Verify under load that self-check LLM calls go direct to `:8000` and never through the router, regardless of failure modes.
 3. **VM crash recovery.** Overlay preservation + audit log chain continuity across a mid-session host crash. `verify-log` handles truncation today; the full recovery runbook is not written.
-4. **Log rotation + retention enforcement.** Today the audit config declares `retention_days`; nothing on the host enforces it. Needs a rotator that preserves chain continuity across files.
+4. **Log rotation.** Retention of rotated archives is enforced as of v0.7.1 via `scripts/enforce_audit_retention.py` + `saaf-log-retention.{service,timer}` under a daily systemd timer (see `docs/RUNBOOK.md`). What is *not* automated yet is the rotation step itself — cutting the live `audit.jsonl` to `audit.jsonl.<date>` in a way that preserves chain continuity across files. Today that is a manual operator action.
 5. **Shell CLI polish.** `run`, `validate`, `verify-log`, `diff`, `sessions`, `test` all exist. Output formatting and error messages are still rough.
 
 ## Deferred to a later version

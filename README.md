@@ -129,6 +129,7 @@ Grouped by what you're trying to do.
 | Bring the shell up on a host and run the smoke test | [`docs/QUICKSTART.md`](docs/QUICKSTART.md) |
 | Know what the shell defends against (and what it does not) | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | See status, next steps, and open decisions | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+| Recover from a crash, broken chain, or orphan network state | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) |
 | Read the full technical spec, test matrices, and control mapping | [`docs/implementation_plan.md`](docs/implementation_plan.md) |
 | Review the security audit | [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) |
 | Install services the production way (systemd) | [`ops/systemd/README.md`](ops/systemd/README.md) |
