@@ -39,6 +39,13 @@ ABSOLUTIST_CASES = [
     "Their appliance is unhackable per the marketing material.",
     "This encryption scheme is unbreakable.",
     "The monitoring stack never fails to detect lateral movement.",
+    # SLA absolutist claims — uptime/availability/downtime framings
+    # that are effectively never truthful in a vendor deliverable.
+    "The platform delivers 100% uptime across all regions.",
+    "The service guarantees 100 % availability to enterprise tenants.",
+    "The architecture provides zero downtime during maintenance windows.",
+    "The vendor promises no downtime for tier-1 workloads.",
+    "No outages have occurred and none will occur.",
 ]
 
 

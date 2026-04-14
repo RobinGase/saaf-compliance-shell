@@ -25,10 +25,10 @@ from dataclasses import dataclass
 # absolute absence of risk. Case-insensitive. Tight by design —
 # each pattern here is something an auditor would not write.
 _ABSOLUTISM_PATTERNS = [
-    # "100% secure" / "100 % compliant" / "100% guaranteed"
-    r"\b100\s*%\s+(?:secure|safe|compliant|protected|guaranteed|reliable|available)\b",
-    # "zero risk" / "no risk" / "risk-free"
-    r"\b(?:zero|no)\s+(?:risk|risks|vulnerabilities|breaches|failures)\b",
+    # "100% secure" / "100 % compliant" / "100% guaranteed" / "100% uptime"
+    r"\b100\s*%\s+(?:secure|safe|compliant|protected|guaranteed|reliable|available|uptime|availability)\b",
+    # "zero risk" / "no risk" / "zero downtime" / "no downtime"
+    r"\b(?:zero|no)\s+(?:risk|risks|vulnerabilities|breaches|failures|downtime|outages)\b",
     r"\brisk[- ]free\b",
     # "completely/absolutely/fully/perfectly secure|safe|compliant|..."
     r"\b(?:completely|absolutely|perfectly)\s+(?:secure|safe|protected|compliant|tamper[- ]proof)\b",
