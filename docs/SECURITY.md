@@ -66,10 +66,11 @@ Four output rails target failure modes specific to audit-assistant agents. Each 
 | `check cot leakage` | Scratchpad markup leaking into the final answer | `<think>`, `[REASONING]`, `My reasoning:`, `Chain-of-thought:`, `Let me think step by step:` appear in output |
 | `check citation validity` | Fabricated EU-regulation article numbers | Article number exceeds the regulation's known maximum — GDPR 99, DORA 64, NIS2 46, AI Act 113 |
 | `check absolutist language` | Absolute guarantees that cannot hold in an audit context | "100% secure", "zero risk", "impossible to breach", "guaranteed compliant", "always compliant" appear in output |
+| `check stale attestations` | Attestation references treated as current when they are no longer fresh | A SOC 2 / ISAE 3402 / ISO 27001 / PCI DSS report with an embedded year more than two years old is cited |
 
 **Result:** a careless or jailbroken model whose output would read as marketing copy (or leak its scratchpad) is refused at the output rail, not returned to the workload. Matching is regex-based and intentionally narrow — hedged audit language ("designed to", "expected to", "per SOC 2 §CC6.7") is not flagged.
 
-**Known limits:** the citation rail matches only `Art.` / `Article` (not the Dutch `Artikel` or variants that omit `of`). Negated absolutist phrasings ("not 100% secure") still trip the rail — rewording around the phrase is trivial and the bare phrase should not appear in deliverables anyway.
+**Known limits:** the citation rail matches only `Art.` / `Article` (not the Dutch `Artikel` or variants that omit `of`). Negated absolutist phrasings ("not 100% secure") still trip the rail — rewording around the phrase is trivial and the bare phrase should not appear in deliverables anyway. The stale-attestation rail has year-level granularity only (no issue-month extraction); the 2-year threshold is a tunable default, not a hard regulatory rule.
 
 ## What the shell does not defend against
 
