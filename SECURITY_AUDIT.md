@@ -1,7 +1,7 @@
 # Security Audit — saaf-compliance-shell (public main)
 
 **Scope:** code read-only review of modules/, scripts/, pyproject.toml, guardrails/.
-**Status:** Draft for review. Not committed to history — intended to guide follow-up PRs.
+**Status:** Reviewed and committed. Findings 1–5 remain open as tracked hardening items; findings 6 is documented as intentional.
 
 ## Summary
 

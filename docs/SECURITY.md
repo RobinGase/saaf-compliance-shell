@@ -56,6 +56,21 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 **Result:** Writing a backdoor to `/usr/local/bin` in session A does not affect session B.
 
+### 9. Unsafe claim shapes in model output
+
+Four output rails target failure modes specific to audit-assistant agents. Each raises the floor on what a generalist LLM will let through; none replaces qualified human review. Regex-level detection lives in `modules/guardrails/*_rule.py` (CI-runnable without nemoguardrails); `@action` wrappers in `guardrails/actions/*.py` register the rails with Colang 2.0 flows in `guardrails/rails.co`.
+
+| Rail | Targets | Refuses when |
+|---|---|---|
+| `check verdict evidence` | Unfounded compliance verdicts — "vendor is compliant", "meets all requirements" | A verdict phrase appears with no evidence anchor (Section / §  / Art. / attestation name) within 200 chars |
+| `check cot leakage` | Scratchpad markup leaking into the final answer | `<think>`, `[REASONING]`, `My reasoning:`, `Chain-of-thought:`, `Let me think step by step:` appear in output |
+| `check citation validity` | Fabricated EU-regulation article numbers | Article number exceeds the regulation's known maximum — GDPR 99, DORA 64, NIS2 46, AI Act 113 |
+| `check absolutist language` | Absolute guarantees that cannot hold in an audit context | "100% secure", "zero risk", "impossible to breach", "guaranteed compliant", "always compliant" appear in output |
+
+**Result:** a careless or jailbroken model whose output would read as marketing copy (or leak its scratchpad) is refused at the output rail, not returned to the workload. Matching is regex-based and intentionally narrow — hedged audit language ("designed to", "expected to", "per SOC 2 §CC6.7") is not flagged.
+
+**Known limits:** the citation rail matches only `Art.` / `Article` (not the Dutch `Artikel` or variants that omit `of`). Negated absolutist phrasings ("not 100% secure") still trip the rail — rewording around the phrase is trivial and the bare phrase should not appear in deliverables anyway.
+
 ## What the shell does not defend against
 
 | Gap | Why | Compensating control |
@@ -72,7 +87,7 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 Full test specs are in [`implementation_plan.md`](implementation_plan.md#red-team-validation). The categories:
 
 - **Isolation:** host filesystem access, internet egress, direct model access, router bypass, VM escape attempts, AgentFS tampering, resource exhaustion, audit log deletion, persistence across sessions.
-- **Guardrails:** PII evasion (obfuscated BSN, base64, PII in filenames, homoglyphs), prompt injection (direct, via PII fields, indirect via documents, role-play jailbreaks), topical control (off-topic, gradual drift, disguised off-topic), CoT PII leakage.
+- **Guardrails:** PII evasion (obfuscated BSN, base64, PII in filenames, homoglyphs), prompt injection (direct, via PII fields, indirect via documents, role-play jailbreaks), topical control (off-topic, gradual drift, disguised off-topic), CoT PII leakage, unfounded verdict refusal, fabricated article-number refusal, absolutist-language refusal, scratchpad-markup leakage refusal.
 - **Router:** direct model call, guardrails bypass, cloud credential injection.
 - **Audit log:** truncation, deletion, hash-chain tampering.
 
