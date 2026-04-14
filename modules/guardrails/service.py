@@ -177,10 +177,10 @@ def _apply_output_rails(
 ) -> dict[str, str]:
     """Run the pure-Python output rails against a response that skipped the Colang pipeline.
 
-    Used on the two bypass paths (oversized payload, empty-rails fallback)
-    where the response otherwise reaches the client without ever touching
-    the ten output rails. Every fire lands in the audit chain; any fire
-    replaces the response content with a canned refusal.
+    Used on the three bypass paths (oversized payload, salvage-from-error,
+    empty-rails fallback) where the response otherwise reaches the client
+    without ever touching the eleven output rails. Every fire lands in the
+    audit chain; any fire replaces the response content with a canned refusal.
     """
     text = bot_message.get("content", "")
     firings: list[RailFiring] = scan_output(text)
