@@ -15,7 +15,15 @@ flow output rails $output_text
   if not $output_safe
     bot refuse "The generated response could not be returned safely."
     abort
+  check cot leakage $output_text
   check verdict evidence $output_text
+
+flow check cot leakage $output_text
+  """Block responses that leak chain-of-thought scratchpad markup."""
+  $cot = await CoTLeakageCheckAction(text=$output_text)
+  if $cot.has_cot_leakage
+    bot refuse "The response contains internal reasoning markers that must not appear in the final answer. Re-issue the answer without scratchpad or chain-of-thought markup."
+    abort
 
 flow check verdict evidence $output_text
   """Block absolutist compliance verdicts that lack an evidence anchor."""
