@@ -152,9 +152,10 @@ Each record: canonical JSON of `{seq, ts, session_id, event, …fields}`, SHA-25
 Event types currently written to the chain:
 
 - `session_start` / `session_end` — runtime lifecycle, via `AuditLog`.
+- `vm_exit` — Firecracker exited cleanly; written by `runtime.py` before teardown.
 - `route_decision` — privacy router appends one per forwarded request via `append_chained_event`.
 - `guardrails_preflight_block` — the service's regex preflight rejected a request (injection / off-topic).
-- `guardrails_rail_fire` — an output rail matched. Written from two places: the Colang-driven action wrappers in `guardrails/actions/*.py` (source `colang_flow`) and the service's bypass paths (source `oversized_bypass` / `empty_rail_bypass`).
+- `guardrails_rail_fire` — an output rail matched. Written from three places: the Colang-driven action wrappers in `guardrails/actions/*.py` (source `colang_flow`, rails include the ten Python rails plus `self_check_input_refusal` / `self_check_output_refusal` from the NeMo self-check rails) and the service's bypass paths (source `oversized_bypass` / `empty_rail_bypass` / `salvage_bypass`).
 - `guardrails_bypass_scan` — a bypass path proxied to the main model; the output-rail scan ran and nothing fired.
 - `guardrails_bypass_refusal` — a bypass path proxied to the main model, a rail fired, and the response was replaced with a refusal.
 

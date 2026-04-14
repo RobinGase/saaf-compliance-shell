@@ -57,6 +57,7 @@ def test_build_setup_commands_locks_guest_to_guardrails() -> None:
         ["ip", "addr", "add", "172.16.0.1/24", "dev", tap],
         ["ip", "link", "set", tap, "up"],
         ["sysctl", "-w", f"net.ipv4.conf.{tap}.route_localnet=1"],
+        ["sysctl", "-w", f"net.ipv6.conf.{tap}.disable_ipv6=1"],
         [
             "iptables",
             "-A",
@@ -90,6 +91,9 @@ def test_build_setup_commands_locks_guest_to_guardrails() -> None:
         ["iptables", "-A", "INPUT", "-i", tap, "-j", "DROP"],
         ["iptables", "-A", "FORWARD", "-i", tap, "-j", "DROP"],
         ["iptables", "-A", "FORWARD", "-o", tap, "-j", "DROP"],
+        ["ip6tables", "-A", "INPUT", "-i", tap, "-j", "DROP"],
+        ["ip6tables", "-A", "FORWARD", "-i", tap, "-j", "DROP"],
+        ["ip6tables", "-A", "FORWARD", "-o", tap, "-j", "DROP"],
         [
             "iptables",
             "-t",
@@ -130,6 +134,9 @@ def test_build_teardown_commands_reverse_setup_order() -> None:
             "--to-destination",
             "127.0.0.1:8088",
         ],
+        ["ip6tables", "-D", "FORWARD", "-o", tap, "-j", "DROP"],
+        ["ip6tables", "-D", "FORWARD", "-i", tap, "-j", "DROP"],
+        ["ip6tables", "-D", "INPUT", "-i", tap, "-j", "DROP"],
         ["iptables", "-D", "FORWARD", "-o", tap, "-j", "DROP"],
         ["iptables", "-D", "FORWARD", "-i", tap, "-j", "DROP"],
         ["iptables", "-D", "INPUT", "-i", tap, "-j", "DROP"],
@@ -163,41 +170,54 @@ def test_build_teardown_commands_reverse_setup_order() -> None:
             "-j",
             "ACCEPT",
         ],
+        ["sysctl", "-w", f"net.ipv6.conf.{tap}.disable_ipv6=0"],
         ["sysctl", "-w", f"net.ipv4.conf.{tap}.route_localnet=0"],
         ["ip", "link", "del", tap],
     ]
 
 
-def test_ensure_ip_forward_disabled_passes_when_zero(tmp_path) -> None:
-    proc = tmp_path / "ip_forward"
-    proc.write_text("0\n", encoding="utf-8")
+def _forward_proc_paths(tmp_path, v4: str = "0", v6: str = "0") -> dict:
+    ipv4 = tmp_path / "ipv4_forward"
+    ipv6 = tmp_path / "ipv6_forwarding"
+    ipv4.write_text(v4 + "\n", encoding="utf-8")
+    ipv6.write_text(v6 + "\n", encoding="utf-8")
+    return {"proc_path": ipv4, "ipv6_proc_path": ipv6}
 
-    ensure_ip_forward_disabled(proc_path=proc, allow_env=None)
+
+def test_ensure_ip_forward_disabled_passes_when_both_zero(tmp_path) -> None:
+    ensure_ip_forward_disabled(**_forward_proc_paths(tmp_path), allow_env=None)
 
 
-def test_ensure_ip_forward_disabled_raises_when_one(tmp_path) -> None:
-    proc = tmp_path / "ip_forward"
-    proc.write_text("1\n", encoding="utf-8")
-
+def test_ensure_ip_forward_disabled_raises_when_ipv4_enabled(tmp_path) -> None:
     with pytest.raises(IpForwardEnabledError, match="net.ipv4.ip_forward=1"):
-        ensure_ip_forward_disabled(proc_path=proc, allow_env=None)
+        ensure_ip_forward_disabled(**_forward_proc_paths(tmp_path, v4="1"), allow_env=None)
+
+
+def test_ensure_ip_forward_disabled_raises_when_ipv6_enabled(tmp_path) -> None:
+    with pytest.raises(IpForwardEnabledError, match="net.ipv6.conf.all.forwarding=1"):
+        ensure_ip_forward_disabled(**_forward_proc_paths(tmp_path, v6="1"), allow_env=None)
+
+
+def test_ensure_ip_forward_disabled_reports_both_when_both_enabled(tmp_path) -> None:
+    with pytest.raises(IpForwardEnabledError) as excinfo:
+        ensure_ip_forward_disabled(**_forward_proc_paths(tmp_path, v4="1", v6="1"), allow_env=None)
+    assert "net.ipv4.ip_forward=1" in str(excinfo.value)
+    assert "net.ipv6.conf.all.forwarding=1" in str(excinfo.value)
 
 
 def test_ensure_ip_forward_disabled_allows_opt_in_when_env_truthy(tmp_path) -> None:
-    proc = tmp_path / "ip_forward"
-    proc.write_text("1\n", encoding="utf-8")
-
-    ensure_ip_forward_disabled(proc_path=proc, allow_env="1")
+    ensure_ip_forward_disabled(**_forward_proc_paths(tmp_path, v4="1", v6="1"), allow_env="1")
 
 
 @pytest.mark.parametrize("falsy", ["", "0", "false", "False"])
 def test_ensure_ip_forward_disabled_ignores_falsy_env(tmp_path, falsy: str) -> None:
-    proc = tmp_path / "ip_forward"
-    proc.write_text("1\n", encoding="utf-8")
-
     with pytest.raises(IpForwardEnabledError):
-        ensure_ip_forward_disabled(proc_path=proc, allow_env=falsy)
+        ensure_ip_forward_disabled(**_forward_proc_paths(tmp_path, v4="1"), allow_env=falsy)
 
 
 def test_ensure_ip_forward_disabled_noops_when_proc_missing(tmp_path) -> None:
-    ensure_ip_forward_disabled(proc_path=tmp_path / "missing", allow_env=None)
+    ensure_ip_forward_disabled(
+        proc_path=tmp_path / "missing_v4",
+        ipv6_proc_path=tmp_path / "missing_v6",
+        allow_env=None,
+    )

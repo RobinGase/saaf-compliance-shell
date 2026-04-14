@@ -105,6 +105,7 @@ def create_app(config_path: str | Path) -> FastAPI:
             )
             return _build_chat_completion_response(body, bot_message, elapsed=0)
 
+        salvaged_from_error = False
         try:
             rails = get_rails(str(config_path), body.model)
             start = time.time()
@@ -116,6 +117,7 @@ def create_app(config_path: str | Path) -> FastAPI:
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
             result = {"role": "assistant", "content": salvaged}
             elapsed = 0
+            salvaged_from_error = True
 
         if isinstance(result, dict):
             bot_message = {
@@ -124,6 +126,14 @@ def create_app(config_path: str | Path) -> FastAPI:
             }
         else:
             bot_message = {"role": "assistant", "content": str(result)}
+
+        # Content recovered from an error-string quote never touched the
+        # Colang output rails. Run the Python rules over it so this path
+        # is not a silent bypass.
+        if salvaged_from_error:
+            bot_message = _apply_output_rails(
+                bot_message, source="salvage_bypass", model=body.model
+            )
 
         if not bot_message["content"].strip():
             bot_message = _proxy_to_main_model(str(config_path), body)

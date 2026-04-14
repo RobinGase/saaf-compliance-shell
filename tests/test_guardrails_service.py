@@ -358,6 +358,68 @@ def test_oversized_bypass_with_rail_firing_proxy_refuses_and_logs(monkeypatch, t
         assert curr["prev_hash"] == prev["event_hash"]
 
 
+def test_salvage_bypass_with_rail_firing_content_refuses_and_logs(monkeypatch, tmp_path: Path) -> None:
+    """Content recovered from an `Invalid LLM response: "..."` error must go through output rails.
+
+    Prior to this wiring, the salvage branch returned the quoted value
+    straight to the caller — every rail was skipped. Regression test:
+    a salvaged string that would fire a rail must be replaced with the
+    canned refusal and produce a guardrails_rail_fire audit event with
+    source=salvage_bypass.
+    """
+    audit_log = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(audit_log))
+
+    firing_text = "Acme is fully compliant and 100% secure."
+
+    class FakeRails:
+        async def generate_async(self, *, messages):
+            raise RuntimeError(f'Invalid LLM response: `"{firing_text}"`')
+
+    monkeypatch.setattr("modules.guardrails.service.get_rails", lambda config_path, model_name=None: FakeRails())
+
+    app = create_app(config_path=tmp_path / "guardrails")
+    client = TestClient(app)
+
+    resp = client.post(
+        "/v1/chat/completions",
+        json={"model": "m", "messages": [{"role": "user", "content": "Review this note."}]},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["choices"][0]["message"]["content"] == BYPASS_REFUSAL
+    events = _read_audit(audit_log)
+    assert any(e["event_type"] == "guardrails_rail_fire" and e["source"] == "salvage_bypass" for e in events)
+    assert events[-1]["event_type"] == "guardrails_bypass_refusal"
+
+
+def test_salvage_bypass_with_clean_content_logs_scan_only(monkeypatch, tmp_path: Path) -> None:
+    """Salvaged content that fires no rail should pass through and log a clean scan."""
+    audit_log = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(audit_log))
+
+    class FakeRails:
+        async def generate_async(self, *, messages):
+            raise RuntimeError('Invalid LLM response: `"OK"`')
+
+    monkeypatch.setattr("modules.guardrails.service.get_rails", lambda config_path, model_name=None: FakeRails())
+
+    app = create_app(config_path=tmp_path / "guardrails")
+    client = TestClient(app)
+
+    resp = client.post(
+        "/v1/chat/completions",
+        json={"model": "m", "messages": [{"role": "user", "content": "Reply with only OK"}]},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["choices"][0]["message"]["content"] == "OK"
+    events = _read_audit(audit_log)
+    assert [e["event_type"] for e in events] == ["guardrails_bypass_scan"]
+    assert events[0]["source"] == "salvage_bypass"
+    assert events[0]["fired"] is False
+
+
 def test_empty_rails_bypass_with_rail_firing_proxy_refuses(monkeypatch, tmp_path: Path) -> None:
     audit_log = tmp_path / "audit.jsonl"
     monkeypatch.setenv("AUDIT_LOG_PATH", str(audit_log))

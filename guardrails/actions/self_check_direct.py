@@ -4,6 +4,8 @@ from typing import Any
 
 import httpx
 
+from ._audit_emit import emit_rail_fire
+
 try:
     from nemoguardrails.actions import action
     from nemoguardrails.actions.actions import ActionResult
@@ -64,6 +66,10 @@ async def self_check_input_direct(llm_task_manager, context=None, config=None, *
         config,
     )
     if not is_safe:
+        emit_rail_fire(
+            "self_check_input_refusal",
+            {"user_input": user_input},
+        )
         return ActionResult(return_value=False)
     return is_safe
 
@@ -81,4 +87,9 @@ async def self_check_output_direct(llm_task_manager, context=None, config=None, 
         },
         config,
     )
+    if not is_safe:
+        emit_rail_fire(
+            "self_check_output_refusal",
+            {"bot_response": context.get("bot_message")},
+        )
     return is_safe
