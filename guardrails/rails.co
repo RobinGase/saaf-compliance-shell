@@ -15,6 +15,14 @@ flow output rails $output_text
   if not $output_safe
     bot refuse "The generated response could not be returned safely."
     abort
+  check verdict evidence $output_text
+
+flow check verdict evidence $output_text
+  """Block absolutist compliance verdicts that lack an evidence anchor."""
+  $verdict = await VerdictCheckAction(text=$output_text)
+  if $verdict.has_unfounded_verdict
+    bot refuse "The response claims compliance without citing supporting evidence. Re-issue the answer with a reference to the specific section, article, or document that supports the finding."
+    abort
 
 flow mask pii in user input $input_text
   """Redact PII from user message before it reaches the model."""
