@@ -11,7 +11,7 @@ import httpx
 def load_red_team_cases(path: str | Path) -> dict[str, list[dict]]:
     path = Path(path)
     cases = json.loads(path.read_text(encoding="utf-8"))
-    grouped = {"blocked": [], "allowed": []}
+    grouped: dict[str, list[dict]] = {"blocked": [], "allowed": []}
     for case in cases:
         grouped[case["expected"]].append(case)
     return grouped

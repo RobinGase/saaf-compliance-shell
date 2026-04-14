@@ -8,7 +8,13 @@ from pathlib import Path
 
 from modules.isolation.agentfs import AgentFSClient, start_nfs_server, stop_nfs_server
 from modules.isolation.firecracker import build_vm_config
-from modules.isolation.network import GUEST_IP, HOST_GATEWAY, build_setup_commands, build_teardown_commands, tap_device_name
+from modules.isolation.network import (
+    GUEST_IP,
+    HOST_GATEWAY,
+    build_setup_commands,
+    build_teardown_commands,
+    tap_device_name,
+)
 from modules.manifest.validator import validate_manifest
 
 

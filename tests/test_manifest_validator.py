@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from modules.manifest.validator import validate_manifest
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

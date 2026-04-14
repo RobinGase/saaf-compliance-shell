@@ -29,7 +29,6 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-
 # Known year revisions per standard. Sources:
 #   ISO/IEC 27001 — 2005, 2013, 2022.
 #   ISO/IEC 27002 — 2005, 2013, 2022.

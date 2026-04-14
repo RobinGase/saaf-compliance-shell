@@ -17,7 +17,6 @@ from modules.guardrails.jurisdiction_rule import (
     jurisdiction_report,
 )
 
-
 # ---- Cases that MUST be flagged (regulation from wrong zone) ---------------
 
 MISMATCH_CASES = [

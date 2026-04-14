@@ -13,7 +13,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # Verdict phrases that claim compliance in absolutes. Case-insensitive.
 # Kept intentionally narrow for high precision. A true positive is
 # "vendor X is compliant with ISO 27001"; a false positive would block

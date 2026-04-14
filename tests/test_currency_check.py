@@ -17,7 +17,6 @@ from modules.guardrails.currency_rule import (
     find_currency_mismatches,
 )
 
-
 # ---- Cases that MUST be flagged (wrong-currency citation) ------------------
 
 MISMATCH_CASES = [

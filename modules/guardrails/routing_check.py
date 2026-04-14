@@ -39,8 +39,8 @@ def prepare_validation_config(
 
 
 class _RecorderHandler(BaseHTTPRequestHandler):
-    router_hits = []
-    direct_hits = []
+    router_hits: list[dict] = []
+    direct_hits: list[dict] = []
     mode = "router"
 
     def do_POST(self):  # noqa: N802

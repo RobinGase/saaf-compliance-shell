@@ -1,15 +1,13 @@
 """Tests for the Privacy Router — FastAPI local-only model routing proxy."""
 
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from modules.router.privacy_router import app, _log_route_decision
+from modules.router.privacy_router import _log_route_decision, app
 
 
 @pytest.fixture

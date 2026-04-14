@@ -17,7 +17,6 @@ from modules.guardrails.cve_rule import (
     find_fabricated_cves,
 )
 
-
 REFERENCE_DATE = date(2026, 4, 14)
 
 

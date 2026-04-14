@@ -14,10 +14,9 @@ from __future__ import annotations
 import pytest
 
 from modules.guardrails.citation_rule import (
-    find_article_citations,
     citation_report,
+    find_article_citations,
 )
-
 
 # ---- Cases that MUST be flagged (out-of-range article numbers) -------------
 

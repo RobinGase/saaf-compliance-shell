@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import re
 import hashlib
-
+import re
 
 HOST_GATEWAY = "172.16.0.1"
 GUEST_IP = "172.16.0.2"

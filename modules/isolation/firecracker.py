@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 import subprocess
 import tempfile
 from pathlib import Path
@@ -26,10 +25,11 @@ def build_vm_config(
     ]
     for key, value in sorted(agent.get("env", {}).items()):
         boot_params.append(f"saaf.env.{key}={_encode_boot_value(str(value))}")
+    nfsroot = f"{host_gateway}:/,nfsvers=3,tcp,nolock,port={nfs_port},mountport={nfs_port}"
     boot_args = (
         "console=ttyS0 reboot=k panic=1 pci=off "
         f"ip={guest_ip}::{host_gateway}:255.255.255.0:{vm_name}:eth0:off "
-        f"root=/dev/nfs nfsroot={host_gateway}:/,nfsvers=3,tcp,nolock,port={nfs_port},mountport={nfs_port} rw init=/init {' '.join(boot_params)}"
+        f"root=/dev/nfs nfsroot={nfsroot} rw init=/init {' '.join(boot_params)}"
     )
     return {
         "boot-source": {

@@ -27,7 +27,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # Highest real article number per regulation. Sources:
 #   GDPR    — Regulation (EU) 2016/679: 99 articles.
 #   DORA    — Regulation (EU) 2022/2554: 64 articles.

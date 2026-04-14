@@ -10,10 +10,9 @@ from __future__ import annotations
 import pytest
 
 from modules.guardrails.cot_leakage_rule import (
-    find_cot_markers,
     cot_report,
+    find_cot_markers,
 )
-
 
 # ---- Cases that MUST be flagged -------------------------------------------
 

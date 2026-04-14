@@ -31,7 +31,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # Regulations whose scope is jurisdiction-bound with no material
 # extraterritorial reach. GDPR, UK GDPR, and the AI Act are
 # intentionally omitted — each has Article 3 / Article 2
@@ -152,10 +151,10 @@ def find_jurisdiction_mismatches(text: str) -> list[JurisdictionFinding]:
         if not reg_matches:
             continue
 
-        def _inside_regulation_span(span: tuple[int, int]) -> bool:
+        def _inside_regulation_span(span: tuple[int, int], _regs=reg_matches) -> bool:
             return any(
                 rs <= span[0] and span[1] <= re_
-                for _, _, (rs, re_) in reg_matches
+                for _, _, (rs, re_) in _regs
             )
 
         jurisdiction_matches: list[tuple[str, str]] = []

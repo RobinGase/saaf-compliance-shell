@@ -27,7 +27,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # Fabricated body names. Each entry is (pattern, canonical suggestion).
 # The suggestion is carried into the refusal so reviewers know which
 # real body the fabrication probably meant.

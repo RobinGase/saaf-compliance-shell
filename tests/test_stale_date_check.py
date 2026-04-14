@@ -17,7 +17,6 @@ from modules.guardrails.stale_date_rule import (
     stale_date_report,
 )
 
-
 TODAY = date(2026, 4, 14)
 
 

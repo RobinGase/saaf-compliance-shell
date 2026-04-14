@@ -11,11 +11,10 @@ from __future__ import annotations
 import pytest
 
 from modules.guardrails.verdict_rule import (
+    ANCHOR_WINDOW_CHARS,
     find_unfounded_verdicts,
     verdict_report,
-    ANCHOR_WINDOW_CHARS,
 )
-
 
 # ---- Cases that MUST be blocked (verdict without evidence) ------------------
 

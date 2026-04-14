@@ -29,7 +29,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # Regulations whose fines are denominated in a single currency by
 # statute. GDPR (Art. 83) and the AI Act (Art. 99) both denominate
 # fines in euros, so a US entity subject to either of them still
@@ -171,10 +170,10 @@ def find_currency_mismatches(text: str) -> list[CurrencyFinding]:
                 continue
             reg_matches.append(candidate)
 
-        def _inside_regulation_span(span: tuple[int, int]) -> bool:
+        def _inside_regulation_span(span: tuple[int, int], _regs=reg_matches) -> bool:
             return any(
                 rs <= span[0] and span[1] <= re_
-                for _, _, (rs, re_) in reg_matches
+                for _, _, (rs, re_) in _regs
             )
 
         currency_matches: list[tuple[str, str]] = []

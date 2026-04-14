@@ -17,7 +17,6 @@ from modules.guardrails.standards_version_rule import (
     standards_version_report,
 )
 
-
 REFERENCE_DATE = date(2026, 4, 14)
 
 

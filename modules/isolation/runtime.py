@@ -13,8 +13,14 @@ from modules.manifest.validator import validate_manifest
 
 from .agentfs import AgentFSClient, start_nfs_server, stop_nfs_server
 from .firecracker import build_vm_config, launch_firecracker
-from .network import GUEST_IP, HOST_GATEWAY, build_setup_commands, build_teardown_commands, tap_device_name, validate_v1_network_rules
-
+from .network import (
+    GUEST_IP,
+    HOST_GATEWAY,
+    build_setup_commands,
+    build_teardown_commands,
+    tap_device_name,
+    validate_v1_network_rules,
+)
 
 DEFAULT_KERNEL_PATH = Path("/opt/saaf/kernels/vmlinux")
 DEFAULT_ROOTFS_PATH = Path("/opt/saaf/rootfs/ubuntu-24.04-python-base")

@@ -173,6 +173,14 @@ pip-compile --strip-extras --output-file requirements.lock pyproject.toml
 
 CI runs `pip-audit` against the lockfile on every push and weekly, so newly disclosed CVEs fail the build even without a code change.
 
+Lint and type-check gates run on every push and PR (`ruff check` + `mypy` over `modules/` and `cli.py`). Run them locally with:
+
+```bash
+pip install -e .[dev]
+ruff check .
+mypy
+```
+
 ## Scope note
 
 The shell enforces technical controls around an agent workload. Governance process, legal review, retention policy approval, and production operating procedures sit outside it and are the operator's responsibility.

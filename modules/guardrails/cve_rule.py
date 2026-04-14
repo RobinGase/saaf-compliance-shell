@@ -32,7 +32,6 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-
 # CVE program first issued identifiers in 1999.
 _FIRST_CVE_YEAR = 1999
 

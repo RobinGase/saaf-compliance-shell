@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import os
-
 from fastapi.testclient import TestClient
 
 from modules.guardrails.service import create_app

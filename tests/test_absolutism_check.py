@@ -12,10 +12,9 @@ from __future__ import annotations
 import pytest
 
 from modules.guardrails.absolutism_rule import (
-    find_absolutist_claims,
     absolutism_report,
+    find_absolutist_claims,
 )
-
 
 # ---- Cases that MUST be flagged -------------------------------------------
 

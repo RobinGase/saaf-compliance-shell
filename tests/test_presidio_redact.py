@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from guardrails.actions.presidio_redact import presidio_redact, _is_valid_bsn
+from guardrails.actions.presidio_redact import _is_valid_bsn, presidio_redact
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

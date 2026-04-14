@@ -15,7 +15,7 @@ import hashlib
 import json
 import sys
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 if sys.platform != "win32":
@@ -108,7 +108,7 @@ def _read_chain_tail(log_path: Path) -> tuple[str | None, int, str]:
     next_seq = 0
     last_hash = GENESIS_PREV_HASH
 
-    with open(log_path, "r", encoding="utf-8") as f:
+    with open(log_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -153,7 +153,7 @@ def append_chained_event(log_path: str | Path, event_type: str, **fields) -> dic
 
             record: dict = {
                 "seq": next_seq,
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(UTC).isoformat(),
                 "event_type": event_type,
             }
             if session_id is not None and "session_id" not in fields:
@@ -186,7 +186,7 @@ def verify_log(path: str | Path) -> tuple[bool, str]:
     prev_hash = GENESIS_PREV_HASH
     count = 0
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line:

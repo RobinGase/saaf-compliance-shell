@@ -17,7 +17,6 @@ from modules.guardrails.regulator_rule import (
     regulator_report,
 )
 
-
 # ---- Cases that MUST be flagged (fabricated) -------------------------------
 
 FABRICATED_CASES = [

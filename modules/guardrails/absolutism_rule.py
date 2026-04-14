@@ -20,7 +20,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # Phrases that claim absolute security, absolute compliance, or
 # absolute absence of risk. Case-insensitive. Tight by design —
 # each pattern here is something an auditor would not write.

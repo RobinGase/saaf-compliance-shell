@@ -23,7 +23,6 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-
 # Attestation/audit-report shapes the rail cares about. Kept narrow:
 # each pattern must name a recognised attestation/report family so
 # ordinary year references (e.g. "the 2019 incident", "per the 2019

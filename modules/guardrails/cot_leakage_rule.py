@@ -19,7 +19,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 # Opening-tag / preamble patterns that signal a scratchpad block or a
 # reasoning preface. Kept deliberately narrow — generic phrases like
 # "I think" must not trigger this rail or it will block half of normal

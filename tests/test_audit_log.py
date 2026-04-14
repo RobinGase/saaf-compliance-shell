@@ -1,16 +1,15 @@
 """Tests for the tamper-evident audit log with hash chain verification."""
 
 import json
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from modules.audit.log import (
+    GENESIS_PREV_HASH,
     AuditLog,
     append_chained_event,
     verify_log,
-    GENESIS_PREV_HASH,
 )
 
 

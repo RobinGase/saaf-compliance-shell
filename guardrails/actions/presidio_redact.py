@@ -6,7 +6,7 @@ Handles Dutch names, email addresses, and BSN numbers (with 11-test validation).
 import re
 
 from nemoguardrails.actions import action
-from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
+from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
@@ -21,7 +21,7 @@ def _is_valid_bsn(digits: str) -> bool:
     if not cleaned.isdigit():
         return False
     weights = [9, 8, 7, 6, 5, 4, 3, 2, -1]
-    total = sum(int(d) * w for d, w in zip(cleaned, weights))
+    total = sum(int(d) * w for d, w in zip(cleaned, weights, strict=False))
     return total % 11 == 0 and total != 0
 
 
