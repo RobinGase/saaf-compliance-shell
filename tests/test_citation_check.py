@@ -43,6 +43,10 @@ FABRICATED_CASES = [
     "Op basis van artikel 800 van het EU AI Act is het systeem verboden.",
     # Dutch reverse phrasing against DORA.
     "Volgens artikel 100 van DORA moet de entiteit een ICT-register bijhouden.",
+    # Bare juxtaposition, no connective — common LLM phrasing.
+    "The obligation derives from Article 237 GDPR.",
+    # Bare juxtaposition against the AI Act.
+    "See Article 250 AI Act for the ban on prohibited practices.",
 ]
 
 
@@ -104,6 +108,10 @@ NON_CITATION_CASES = [
     "Control A.5.1 is implemented as described in Annex A.",
     # Year number next to "Article" but not as an article reference.
     "The Article was published in 2016 in the Official Journal.",
+    # Sentence where a number follows "Article" and some later clause
+    # mentions a framework — the bare-juxtaposition branch should not
+    # span across intervening words.
+    "Article 5 describes principles; subsequently the GDPR text follows.",
 ]
 
 

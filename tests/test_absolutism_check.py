@@ -72,10 +72,13 @@ HEDGED_CASES = [
     "No audit can guarantee that a future breach is impossible.",
     # Discussion of a guarantee that explicitly acknowledges limits.
     "The contract provides a best-effort guarantee, not an absolute one.",
+    # Negated absolutist phrases — legitimate hedged audit language.
+    "The system is not 100% secure against targeted adversaries.",
+    "The platform is never completely secure; residual risk remains.",
+    "No control is unbreakable in the face of insider misuse.",
+    "The appliance isn't unhackable — the SOC 2 report flags gaps.",
+    "The service does not guarantee zero downtime during failover.",
 ]
-# Note: negated phrasings like "not 100% secure" will trip this rail.
-# That is accepted — audit deliverables should not carry the absolutist
-# phrase at all, even in negated form. Rewording around it is trivial.
 
 
 @pytest.mark.parametrize("text", HEDGED_CASES)

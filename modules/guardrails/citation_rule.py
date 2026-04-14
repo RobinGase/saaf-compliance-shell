@@ -88,10 +88,13 @@ def _alias_group(framework: str) -> str:
 # so "artikel 500 van de AVG" is caught alongside "Article 500 of GDPR".
 def _framework_pattern(framework: str) -> re.Pattern[str]:
     alias = _alias_group(framework)
-    connective = r"(?:of|van)\s+(?:the\s+|de\s+|het\s+)?"
+    # Connective between "Article N" and the framework alias is optional
+    # so bare juxtaposition ("Article 100 GDPR") is caught alongside the
+    # hedged forms ("Article 100 of the GDPR", "artikel 100 van de AVG").
+    connective = r"(?:(?:of|van)\s+(?:the\s+|de\s+|het\s+)?)?"
     pattern = (
         rf"(?:{alias}\s*(?:Art\.?|Article|Artikel)\s*(?P<num_a>\d+)"
-        rf"|(?:Art\.?|Article|Artikel)\s*(?P<num_b>\d+)\s*{connective}{alias})"
+        rf"|(?:Art\.?|Article|Artikel)\s+(?P<num_b>\d+)\s+{connective}{alias})"
     )
     return re.compile(pattern, re.IGNORECASE)
 

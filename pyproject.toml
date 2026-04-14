@@ -1,7 +1,10 @@
 [project]
 name = "saaf-compliance-shell"
-version = "0.1.0"
+version = "0.7.1"
 description = "Modular compliance wrapper for AI agent workloads"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "nemoguardrails>=0.10.0",

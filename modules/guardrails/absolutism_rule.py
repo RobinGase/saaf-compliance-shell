@@ -52,6 +52,30 @@ _ABSOLUTISM_PATTERNS = [
 
 _absolutism_re = re.compile("|".join(_ABSOLUTISM_PATTERNS), re.IGNORECASE)
 
+# Negation tokens and the window (in tokens) to look back from the match.
+# A match that has "not"/"no"/"never"/"nor"/"nothing" within this window
+# is treated as hedged language ("the system is not 100% secure") and
+# excluded. The window is deliberately short so long-range negations
+# don't accidentally suppress a real absolutist claim later in the
+# same sentence.
+_NEGATION_TOKENS = frozenset({"not", "no", "never", "nor", "nothing", "n't"})
+_NEGATION_LOOKBACK_TOKENS = 5
+
+
+def _is_negated(text: str, start: int) -> bool:
+    """Return True if a negation token appears in the N tokens before `start`."""
+    prefix = text[:start]
+    # Catch "isn't", "doesn't", "won't", etc. by splitting on non-word chars
+    # but keeping the `'` so contractions stay intact enough to spot `n't`.
+    tokens = re.findall(r"[A-Za-z']+", prefix)
+    for token in tokens[-_NEGATION_LOOKBACK_TOKENS:]:
+        lowered = token.lower()
+        if lowered in _NEGATION_TOKENS:
+            return True
+        if lowered.endswith("n't"):
+            return True
+    return False
+
 
 @dataclass
 class AbsolutismFinding:
@@ -63,11 +87,15 @@ class AbsolutismFinding:
 
 
 def find_absolutist_claims(text: str) -> list[AbsolutismFinding]:
-    """Return every absolutist claim located in `text`."""
-    return [
-        AbsolutismFinding(phrase=m.group(0), start=m.start(), end=m.end())
-        for m in _absolutism_re.finditer(text)
-    ]
+    """Return every absolutist claim located in `text`, skipping negated ones."""
+    findings: list[AbsolutismFinding] = []
+    for m in _absolutism_re.finditer(text):
+        if _is_negated(text, m.start()):
+            continue
+        findings.append(
+            AbsolutismFinding(phrase=m.group(0), start=m.start(), end=m.end())
+        )
+    return findings
 
 
 def absolutism_report(text: str) -> dict:

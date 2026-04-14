@@ -157,7 +157,7 @@ Grouped by what you're trying to do.
 
 ## Current status
 
-Latest release: **v0.7.0**. Ten output rails (regulator-name rail added), CI-gated branch policy, reproducible release tarball on `dev/main`. The end-to-end path works: Firecracker + AgentFS + Guardrails + Router + audit log run on a single Linux host, and Vendor_Guard produces real scorecard, gap register, and audit memo artefacts through the VM path. The modular branch is proven enough to support real testing work; it is not yet production-ready. Tracked next steps and open decisions live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Latest release: **v0.7.1**. Ten output rails, CI-gated branch policy, reproducible release tarball on `dev/main`. v0.7.1 closes two review-surfaced correctness gaps (router `route_decision` events now join the hash chain; `BsnRecognizer` no longer mutates shared pattern state), extends the citation rail to catch bare-juxtaposition phrasing ("Article 237 GDPR"), and makes the absolutism rail negation-aware so "not 100% secure" is no longer flagged. The end-to-end path works: Firecracker + AgentFS + Guardrails + Router + audit log run on a single Linux host, and Vendor_Guard produces real scorecard, gap register, and audit memo artefacts through the VM path. The modular branch is proven enough to support real testing work; it is not yet production-ready. Tracked next steps and open decisions live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Development workflow
 
@@ -166,3 +166,7 @@ Latest release: **v0.7.0**. Ten output rails (regulator-name rail added), CI-gat
 ## Scope note
 
 The shell enforces technical controls around an agent workload. Governance process, legal review, retention policy approval, and production operating procedures sit outside it and are the operator's responsibility.
+
+## License
+
+Apache License 2.0. See [`LICENSE`](LICENSE).
