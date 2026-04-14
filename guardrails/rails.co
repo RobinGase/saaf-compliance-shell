@@ -25,6 +25,7 @@ flow output rails $output_text
   check standards version $output_text
   check cve validity $output_text
   check regulator validity $output_text
+  check deadline validity $output_text
 
 flow check cot leakage $output_text
   """Block responses that leak chain-of-thought scratchpad markup."""
@@ -94,6 +95,13 @@ flow check regulator validity $output_text
   $reg = await RegulatorCheckAction(text=$output_text)
   if $reg.has_fabricated_regulator
     bot refuse "The response names a supervisory or regulatory body that does not exist (e.g. 'European Privacy Authority', 'EU Cybersecurity Commission', 'UK Privacy Authority'). Re-issue the answer citing the correct body (EDPB, ENISA, ICO, etc.), or drop the reference if uncertain."
+    abort
+
+flow check deadline validity $output_text
+  """Block responses citing wrong statutory notification windows for GDPR, NIS2, or DORA."""
+  $dl = await DeadlineCheckAction(text=$output_text)
+  if $dl.has_fabricated_deadline
+    bot refuse "The response cites a notification deadline that does not match the statutory window for the named regulation (GDPR Art. 33: 72h; NIS2 Art. 23: 24h early warning / 72h incident / 1 month final; DORA: 4h initial / 72h intermediate / 1 month final). Re-issue the answer with the correct window, or drop the figure if uncertain."
     abort
 
 flow mask pii in user input $input_text

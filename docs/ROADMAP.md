@@ -8,7 +8,7 @@ Where the shell is today, what is next, and what was intentionally deferred.
 |---|---|
 | Manifest validation | Working. 11 tests. |
 | Audit log (hash chain + verify) | Working. 11 tests. |
-| Guardrails HTTP wrapper (`:8088`) | Working. PII masking, injection preflight, topical rail, and 10 output rails (verdict / CoT / citation / absolutism / stale-attestation / jurisdiction / currency / standards-version / CVE / regulator-name). |
+| Guardrails HTTP wrapper (`:8088`) | Working. PII masking, injection preflight, topical rail, and 11 output rails (verdict / CoT / citation / absolutism / stale-attestation / jurisdiction / currency / standards-version / CVE / regulator-name / incident-deadline). |
 | Privacy Router (`:8089`) | Working. Local-only routing. 6 tests. |
 | Presidio + BSN recognizer | Working. 22 tests. Dutch NLP model wired. |
 | Firecracker VM launcher | Working. Unit-tested + live boot verified on Linux. |
@@ -25,7 +25,7 @@ The modular branch is considered "proven enough to support real testing work." I
 2. **Kernel cmdline hardening.** Manifest `agent.env` values are only space-escaped when building Firecracker boot args. Newline / quote validation is still open — see `SECURITY_AUDIT.md` finding 1.
 3. **HTTPS default for the rootfs builder.** `scripts/build-rootfs.sh` defaults to `http://archive.ubuntu.com`. Package signing still protects integrity, but flipping the default to HTTPS removes the MITM metadata concern.
 4. **Dependency lock + `pip-audit` in CI.** `pyproject.toml` only pins lower bounds. CI should fail on known advisories.
-5. **Output-rail matrix expansion.** Ten rails landed by v0.7.0; v0.8.0 tuned four of them (citation, verdict, absolutism, CoT) against adversarial paraphrases surfaced by an independent review. Candidates still queued: fabricated case-law and enforcement-action IDs, fabricated incident-notification deadlines (GDPR 72h, NIS2 24h/72h/1mo, DORA 4h). Each new rail follows the established pattern — pure-Python rule under `modules/guardrails/*_rule.py`, thin `@action` wrapper, matrix tests, `rails.co` wiring, `docs/SECURITY.md` row.
+5. **Output-rail matrix expansion.** Ten rails landed by v0.7.0; v0.8.0 tuned four of them (citation, verdict, absolutism, CoT) against adversarial paraphrases surfaced by an independent review. v0.8.2 adds the incident-notification-deadline rail (GDPR Art. 33 72h; NIS2 Art. 23 24h/72h/1mo; DORA Art. 19 4h/72h/1mo). Candidate still queued: fabricated case-law and enforcement-action IDs. Each new rail follows the established pattern — pure-Python rule under `modules/guardrails/*_rule.py`, thin `@action` wrapper, matrix tests, `rails.co` wiring, `docs/SECURITY.md` row.
 
 ## What is next (medium term)
 
