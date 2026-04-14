@@ -45,10 +45,9 @@ Router is bound via iptables to the VM's tap gateway only. In a misconfigured ho
 - Manifest schema validator enforces required fields and v1 resource bounds.
 
 ## Dependency snapshot
-`pyproject.toml` pins lower bounds only. For a hardened build, produce a `requirements.lock` and scan with `pip-audit` before each release.
+`pyproject.toml` pins lower bounds only, but `requirements.lock` pins the full transitive closure (pip-compiled from pyproject). `.github/workflows/audit.yml` runs `pip-audit -r requirements.lock --strict` on every push, every PR, and weekly — so newly disclosed CVEs fail CI even when nothing has changed in the repo. Regenerate the lockfile with `pip-compile --strip-extras --output-file requirements.lock pyproject.toml` after any `pyproject.toml` dependency change.
 
 ## Recommended follow-ups (ordered)
 1. Kernel cmdline value sanitisation (finding 1).
 2. Bind privacy router explicitly to gateway IP (finding 4).
 3. HTTPS default for rootfs mirror (finding 5).
-4. Add `pip-audit` check to CI for public main.

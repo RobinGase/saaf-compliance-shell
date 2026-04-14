@@ -163,6 +163,15 @@ Latest release: **v0.7.1**. Ten output rails, CI-gated branch policy, reproducib
 
 `main` is the modular, upstream-safe version. Local-machine-specific or private-environment work belongs on a personal branch. `scripts/check_branch_portability.py` enforces "no personal hostnames, no Tailscale IPs" on `main` and `modular/*` to keep the upstream-safe shape intact.
 
+`requirements.lock` pins the full transitive dependency closure. After changing anything in `pyproject.toml`'s `dependencies`, regenerate it:
+
+```bash
+pip install pip-tools
+pip-compile --strip-extras --output-file requirements.lock pyproject.toml
+```
+
+CI runs `pip-audit` against the lockfile on every push and weekly, so newly disclosed CVEs fail the build even without a code change.
+
 ## Scope note
 
 The shell enforces technical controls around an agent workload. Governance process, legal review, retention policy approval, and production operating procedures sit outside it and are the operator's responsibility.
