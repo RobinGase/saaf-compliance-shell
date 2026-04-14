@@ -16,6 +16,7 @@ flow output rails $output_text
     bot refuse "The generated response could not be returned safely."
     abort
   check cot leakage $output_text
+  check citation validity $output_text
   check verdict evidence $output_text
 
 flow check cot leakage $output_text
@@ -23,6 +24,13 @@ flow check cot leakage $output_text
   $cot = await CoTLeakageCheckAction(text=$output_text)
   if $cot.has_cot_leakage
     bot refuse "The response contains internal reasoning markers that must not appear in the final answer. Re-issue the answer without scratchpad or chain-of-thought markup."
+    abort
+
+flow check citation validity $output_text
+  """Block responses citing EU-regulation articles whose numbers exceed the regulation's known maximum."""
+  $citation = await CitationCheckAction(text=$output_text)
+  if $citation.has_fabricated_citation
+    bot refuse "The response cites an article number that does not exist in the named regulation. Re-issue the answer without fabricated citations."
     abort
 
 flow check verdict evidence $output_text
