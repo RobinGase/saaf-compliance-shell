@@ -18,6 +18,7 @@ flow output rails $output_text
   check cot leakage $output_text
   check citation validity $output_text
   check verdict evidence $output_text
+  check absolutist language $output_text
 
 flow check cot leakage $output_text
   """Block responses that leak chain-of-thought scratchpad markup."""
@@ -38,6 +39,13 @@ flow check verdict evidence $output_text
   $verdict = await VerdictCheckAction(text=$output_text)
   if $verdict.has_unfounded_verdict
     bot refuse "The response claims compliance without citing supporting evidence. Re-issue the answer with a reference to the specific section, article, or document that supports the finding."
+    abort
+
+flow check absolutist language $output_text
+  """Block absolutist security/compliance claims that cannot be true in an audit context."""
+  $abs = await AbsolutismCheckAction(text=$output_text)
+  if $abs.has_absolutist_claim
+    bot refuse "The response contains absolutist security or compliance language (e.g. '100% secure', 'zero risk'). Audit conclusions are probabilistic and point-in-time — re-issue the answer with appropriately hedged language."
     abort
 
 flow mask pii in user input $input_text
