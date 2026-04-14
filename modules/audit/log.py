@@ -51,7 +51,6 @@ class AuditLog:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._session_id: str | None = None
-        self._session_event_count = 0
 
     def start_session(
         self,
@@ -62,7 +61,6 @@ class AuditLog:
     ) -> dict:
         """Write a genesis record for a new session."""
         self._session_id = session_id
-        self._session_event_count = 0
         return self._write_event(
             event_type="session_start",
             session_id=session_id,
@@ -76,21 +74,64 @@ class AuditLog:
         return self._write_event(event_type=event_type, **fields)
 
     def end_session(self) -> dict:
-        """Write a session_end record with the count of events from this writer."""
+        """Write a session_end record.
+
+        ``event_count`` is the number of events whose ``session_id`` matches
+        this session, read from the full log at close. That means it includes
+        records written by out-of-process writers (the privacy router and the
+        guardrails service), not just records from this ``AuditLog`` instance.
+        The end record itself is included in the count.
+        """
+        session_id = self._session_id
+        event_count = self._count_session_events(session_id) + 1
         event = self._write_event(
             event_type="session_end",
-            session_id=self._session_id,
-            event_count=self._session_event_count + 1,  # include the end itself
+            session_id=session_id,
+            event_count=event_count,
         )
         self._session_id = None
         return event
 
+    def _count_session_events(self, session_id: str | None) -> int:
+        """Return the number of events written since this session's genesis.
+
+        Scans the log for the ``session_start`` record matching ``session_id``
+        and counts every record from that point onward, inclusive. Individual
+        event records (``file_create``, ``pii_redaction``, ``guardrails_*``)
+        don't carry ``session_id``, so counting by start-position is the only
+        way to include out-of-process writers (the privacy router and the
+        guardrails service) in the total. Ignores lines that don't parse —
+        those are crash-truncated tails that ``append_chained_event`` heals
+        on the next write.
+        """
+        if session_id is None or not self._path.exists():
+            return 0
+        count = 0
+        found_start = False
+        with self._path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not found_start:
+                    if (
+                        record.get("event_type") == "session_start"
+                        and record.get("session_id") == session_id
+                    ):
+                        found_start = True
+                        count = 1
+                    continue
+                count += 1
+        return count
+
     def _write_event(self, **fields) -> dict:
         """Build, hash, and append a single event via the cross-process writer."""
         with self._lock:
-            record = append_chained_event(self._path, **fields)
-            self._session_event_count += 1
-            return record
+            return append_chained_event(self._path, **fields)
 
 
 def _read_chain_tail(log_path: Path) -> tuple[str | None, int, str, int | None]:

@@ -84,6 +84,61 @@ class TestRouteEndpoint:
             data = resp.json()
             assert "choices" in data
 
+    def test_route_logs_model_from_request_body(self, client, tmp_audit_log):
+        """The audited model name comes from the request payload, not a
+        hardcoded constant — a user targeting a different served model must
+        still see that model in the audit chain."""
+        mock_body = json.dumps({
+            "model": "some-other-served-model:latest",
+            "messages": [{"role": "user", "content": "Hello"}],
+        })
+        mock_response_body = json.dumps({"choices": [{"message": {"content": "ok"}}]})
+
+        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
+            mock_resp = AsyncMock()
+            mock_resp.content = mock_response_body.encode()
+            mock_resp.status_code = 200
+            mock_instance = AsyncMock()
+            mock_instance.post = AsyncMock(return_value=mock_resp)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            mock_client.return_value = mock_instance
+
+            client.post(
+                "/v1/chat/completions",
+                content=mock_body,
+                headers={"Content-Type": "application/json"},
+            )
+
+        lines = tmp_audit_log.read_text().strip().split("\n")
+        record = json.loads(lines[-1])
+        assert record["event_type"] == "route_decision"
+        assert record["model"] == "some-other-served-model:latest"
+
+    def test_route_logs_unknown_model_for_malformed_body(self, client, tmp_audit_log):
+        """A body that can't be parsed as JSON must still produce a
+        route_decision event — logging is load-bearing for the audit chain."""
+        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
+            mock_resp = AsyncMock()
+            mock_resp.content = b'{"choices":[]}'
+            mock_resp.status_code = 200
+            mock_instance = AsyncMock()
+            mock_instance.post = AsyncMock(return_value=mock_resp)
+            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_instance.__aexit__ = AsyncMock(return_value=False)
+            mock_client.return_value = mock_instance
+
+            client.post(
+                "/v1/chat/completions",
+                content=b"not-json",
+                headers={"Content-Type": "application/json"},
+            )
+
+        lines = tmp_audit_log.read_text().strip().split("\n")
+        record = json.loads(lines[-1])
+        assert record["event_type"] == "route_decision"
+        assert record["model"] == "unknown"
+
     def test_route_returns_upstream_error(self, client):
         with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
             mock_resp = AsyncMock()

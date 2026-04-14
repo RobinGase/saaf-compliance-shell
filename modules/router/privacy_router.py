@@ -5,6 +5,7 @@ No cloud fallback in v1. PII masking is handled by NeMo Guardrails
 before traffic reaches this router.
 """
 
+import json
 import logging
 import os
 import time
@@ -40,6 +41,23 @@ def _log_route_decision(target: str, model: str, latency_ms: float) -> None:
         logger.warning("Could not write route decision to audit log")
 
 
+def _model_from_body(body: bytes) -> str:
+    """Extract the ``model`` field from an OpenAI-style chat completion body.
+
+    Returns ``"unknown"`` if the body is not JSON or has no ``model`` key —
+    the audit event must still be logged in that case so the route decision
+    is never silently dropped.
+    """
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, ValueError):
+        return "unknown"
+    if not isinstance(payload, dict):
+        return "unknown"
+    model = payload.get("model")
+    return model if isinstance(model, str) and model else "unknown"
+
+
 @app.post("/v1/chat/completions")
 async def route(request: Request) -> Response:
     """Forward inference request to local model endpoint.
@@ -62,7 +80,7 @@ async def route(request: Request) -> Response:
 
     _log_route_decision(
         target="local_nim",
-        model="Randomblock1/nemotron-nano:8b",
+        model=_model_from_body(body),
         latency_ms=latency_ms,
     )
 
