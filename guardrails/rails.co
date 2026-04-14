@@ -23,6 +23,7 @@ flow output rails $output_text
   check jurisdiction scope $output_text
   check currency scope $output_text
   check standards version $output_text
+  check cve validity $output_text
 
 flow check cot leakage $output_text
   """Block responses that leak chain-of-thought scratchpad markup."""
@@ -78,6 +79,13 @@ flow check standards version $output_text
   $ver = await StandardsVersionCheckAction(text=$output_text)
   if $ver.has_fabricated_version
     bot refuse "The response cites a standards version or revision that does not exist (e.g. 'ISO 27001:3000', 'PCI DSS v9.0', 'NIST 800-53 Rev 12'). Re-issue the answer citing an actually-published version, or drop the version token if uncertain."
+    abort
+
+flow check cve validity $output_text
+  """Block responses citing fabricated CVE identifiers."""
+  $cve = await CVECheckAction(text=$output_text)
+  if $cve.has_fabricated_cve
+    bot refuse "The response cites a CVE identifier whose shape or year is invalid (e.g. 'CVE-2099-0001', 'CVE-2024-1', 'CVE 2023 0001'). Re-issue the answer citing an actually-published CVE, or drop the identifier if uncertain."
     abort
 
 flow mask pii in user input $input_text
