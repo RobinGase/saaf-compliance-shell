@@ -1,0 +1,35 @@
+[Unit]
+Description=SAAF Guardrails HTTP service (NeMo Guardrails)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=robindev
+Group=robindev
+EnvironmentFile=/etc/saaf-shell/services.env
+WorkingDirectory=${SAAF_SHELL_ROOT}
+ExecStart=${SAAF_SHELL_ROOT}/.venv/bin/python scripts/start-guardrails-local.py
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=saaf-guardrails
+
+# Hardening — service binds to 127.0.0.1 only and needs no privileged paths
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/tmp
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+# note: MemoryDenyWriteExecute left off — Python JIT / cffi loaders need W|X pages
+
+[Install]
+WantedBy=multi-user.target

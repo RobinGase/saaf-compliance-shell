@@ -1,0 +1,35 @@
+[Unit]
+Description=SAAF Privacy Router (gates model traffic to the local endpoint)
+After=network-online.target saaf-guardrails.service
+Wants=network-online.target
+# Router depends on Guardrails being up for self-check validation, but does not
+# fail if Guardrails is slow to start — Restart=on-failure will retry.
+Requires=saaf-guardrails.service
+
+[Service]
+Type=simple
+User=robindev
+Group=robindev
+EnvironmentFile=/etc/saaf-shell/services.env
+WorkingDirectory=${SAAF_SHELL_ROOT}
+ExecStart=${SAAF_SHELL_ROOT}/.venv/bin/python -m uvicorn modules.router.privacy_router:app --host 127.0.0.1 --port 8089
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=saaf-router
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/tmp
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
