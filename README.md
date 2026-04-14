@@ -133,7 +133,16 @@ CI is branch aware:
 
 ## Documentation
 
-- [Implementation Plan](docs/implementation_plan.md)
+Start here:
+
+- [Architecture](docs/ARCHITECTURE.md) — system shape, trust boundaries, and the path a request takes
+- [Security Model](docs/SECURITY.md) — what the shell defends against, what it does not, and the red-team matrix
+- [Quickstart](docs/QUICKSTART.md) — bring up the shell on a Linux host and run the VM smoke test
+- [Roadmap](docs/ROADMAP.md) — current status, what is next, what was deferred
+
+Deep reference:
+
+- [Implementation Plan](docs/implementation_plan.md) — full phased build sequence, per-module specs, GDPR / DORA / AI Act control mapping
 
 ## Scope Note
 
