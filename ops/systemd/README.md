@@ -12,23 +12,28 @@ to journald.
 | `saaf-router.service` | Privacy router on `127.0.0.1:8089`, depends on guardrails |
 | `services.env.example` | Environment file template (install as `/etc/saaf-shell/services.env`) |
 
-Both units run as the `robindev` user, read their configuration from
-`/etc/saaf-shell/services.env`, and expect a persistent install under
-`$SAAF_SHELL_ROOT` (default `/opt/saaf/shell`) with `.venv/` alongside.
+Both units run as a dedicated `saaf` service account, read their configuration
+from `/etc/saaf-shell/services.env`, and expect a persistent install under
+`$SAAF_SHELL_ROOT` (default `/opt/saaf/shell`) with `.venv/` alongside. If
+you prefer to run the services as a different user, edit the `User=` and
+`Group=` lines in both unit files before installing.
 
 ## Install (one-time, as root)
 
 ```bash
+# 0. Service account (skip if already present).
+useradd --system --shell /usr/sbin/nologin --home-dir /opt/saaf/shell saaf
+
 # 1. Persistent repo location (once). /tmp is wiped on reboot; don't use it
 #    for a service install.
-install -d -o robindev -g robindev /opt/saaf/shell
+install -d -o saaf -g saaf /opt/saaf/shell
 # (ship and extract the shell tarball here, build .venv, install deps —
 #  same steps as the fresh-boot runbook, just at /opt/saaf/shell instead
 #  of /tmp/saaf-shell-live)
 
 # 2. Environment file
 install -d -m 0755 /etc/saaf-shell
-install -m 0640 -o root -g robindev \
+install -m 0640 -o root -g saaf \
     ops/systemd/services.env.example /etc/saaf-shell/services.env
 # Edit /etc/saaf-shell/services.env to set LOCAL_NIM_URL for this host.
 

@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=robindev
-Group=robindev
+User=saaf
+Group=saaf
 EnvironmentFile=/etc/saaf-shell/services.env
 WorkingDirectory=${SAAF_SHELL_ROOT}
 ExecStart=${SAAF_SHELL_ROOT}/.venv/bin/python scripts/start-guardrails-local.py

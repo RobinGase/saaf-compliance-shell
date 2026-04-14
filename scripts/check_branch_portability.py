@@ -10,6 +10,7 @@ from pathlib import Path
 FORBIDDEN_STRINGS = (
     "maindev",
     "fedoraserver",
+    "robindev",
     "100.87.245.60",
     "100.115.144.22",
     "setup-ollama-maindev",
@@ -30,6 +31,9 @@ TARGET_PATHS = (
     "modules/router/privacy_router.py",
     "scripts/build-rootfs.sh",
     "scripts/setup-ollama-local.sh",
+    "ops/systemd/saaf-guardrails.service",
+    "ops/systemd/saaf-router.service",
+    "ops/systemd/README.md",
 )
 
 
