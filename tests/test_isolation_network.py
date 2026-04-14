@@ -37,7 +37,7 @@ def test_validate_v1_network_rules_rejects_any_other_endpoint() -> None:
     manifest = {
         "network": {
             "allow": [
-                {"host": "100.87.245.60", "port": 8000, "purpose": "ollama"},
+                {"host": "192.0.2.1", "port": 8000, "purpose": "ollama"},
             ]
         }
     }

@@ -14,6 +14,8 @@ FORBIDDEN_STRINGS = (
     "100.115.144.22",
     "setup-ollama-maindev",
     "build-rootfs-fedoraserver",
+    # Sentinel — never used outside the portability test.
+    "FORBIDDEN_PORTABILITY_SENTINEL",
 )
 
 TARGET_PATHS = (

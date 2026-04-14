@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# setup-fedoraserver.sh — Install Firecracker + AgentFS on fedoraserver
-# Run as: sudo bash setup-fedoraserver.sh
+# setup-linux-host.sh — Install Firecracker + AgentFS on the target Linux host.
+# Run as: sudo bash setup-linux-host.sh
+# The invoking user (SUDO_USER) is added to the kvm group so they can run
+# Firecracker without root after this script finishes.
 set -euo pipefail
 
 FIRECRACKER_VERSION="v1.15.0"
@@ -107,8 +109,14 @@ else
 fi
 
 echo ""
-echo "=== Ensure robindev has KVM access ==="
-usermod -aG kvm robindev 2>/dev/null || true
+echo "=== Ensure invoking user has KVM access ==="
+TARGET_USER="${SUDO_USER:-}"
+if [ -n "${TARGET_USER}" ]; then
+    usermod -aG kvm "${TARGET_USER}" 2>/dev/null || true
+    echo "Added ${TARGET_USER} to kvm group (log out and back in for it to take effect)"
+else
+    echo "SUDO_USER not set — skipping kvm group add. Run: sudo usermod -aG kvm <username>"
+fi
 
 echo ""
 echo "=== Summary ==="

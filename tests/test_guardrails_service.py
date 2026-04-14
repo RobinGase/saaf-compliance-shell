@@ -139,7 +139,7 @@ models:
     )
     (source / "main.co").write_text("flow main\n  pass\n", encoding="utf-8")
 
-    monkeypatch.setenv("SAAF_SELF_CHECK_URL", "http://100.87.245.60:8000/v1")
+    monkeypatch.setenv("SAAF_SELF_CHECK_URL", "http://192.0.2.1:8000/v1")
 
     captured = {}
 
@@ -164,7 +164,7 @@ models:
     get_rails.cache_clear()
     get_rails(str(source))
 
-    assert captured["self_check_url"] == "http://100.87.245.60:8000/v1"
+    assert captured["self_check_url"] == "http://192.0.2.1:8000/v1"
 
 
 def test_chat_completions_blocks_obvious_prompt_injection(tmp_path: Path) -> None:

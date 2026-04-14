@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Check if the host supports KVM — run this on fedoraserver first.
-# Usage: ssh fedoraserver 'bash -s' < scripts/check-kvm.sh
+# Check if the host supports KVM — run this on the target Linux host first.
+# Usage: bash scripts/check-kvm.sh  (or pipe over ssh)
 
 set -euo pipefail
 
@@ -88,20 +88,6 @@ if command -v exportfs &>/dev/null || [ -f /etc/exports ]; then
 else
     echo "INFO: NFS tools not found — needed for AgentFS overlay export to guest"
     echo "      Install: sudo dnf install nfs-utils (Fedora)"
-fi
-
-# 8. Tailscale connectivity to maindev
-echo ""
-echo "--- Tailscale (maindev connectivity) ---"
-if command -v tailscale &>/dev/null; then
-    echo "OK: Tailscale installed"
-    if ping -c 1 -W 2 100.87.245.60 &>/dev/null; then
-        echo "OK: maindev (100.87.245.60) reachable"
-    else
-        echo "WARN: maindev (100.87.245.60) not reachable — is it online?"
-    fi
-else
-    echo "WARN: Tailscale not installed"
 fi
 
 echo ""
