@@ -32,6 +32,15 @@ BLOCK_CASES = [
         "The vendor provided a staff handbook and a policy document. "
         "After reviewing the material, I conclude that Acme is compliant."
     ),
+    # Paraphrased "satisfies" — each/every and "requirements"/"obligations".
+    "The vendor satisfies each and every GDPR obligation.",
+    "Acme satisfies every requirement in the audit scope.",
+    # Passive-voice fulfilled variants.
+    "All GDPR obligations have been fulfilled by the vendor.",
+    "The vendor fulfills all obligations under the contract.",
+    "Acme fulfilled each requirement in the DORA framework.",
+    # Non-hedged "in full compliance".
+    "The vendor is in full compliance with NIS2.",
 ]
 
 

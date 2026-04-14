@@ -36,6 +36,12 @@ LEAK_CASES = [
         "<think>Should I soften the AMBER rating?</think>\n\n"
         "Control A.8: AMBER with gap."
     ),
+    # HTML-entity-escaped scratchpad — what a reasoning model emits when
+    # its output was run through html.escape() upstream (common in chat UIs
+    # that render agent output as HTML). The rail must still fire.
+    "&lt;think&gt;Hidden reasoning goes here.&lt;/think&gt;\nFinding: A.5 is met.",
+    "&lt;reasoning&gt;Weighing evidence.&lt;/reasoning&gt;\nStatus: AMBER.",
+    "&lt;scratchpad&gt;Notes.&lt;/scratchpad&gt;\nAnswer.",
 ]
 
 

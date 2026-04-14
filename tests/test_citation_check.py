@@ -46,6 +46,13 @@ FABRICATED_CASES = [
     "The obligation derives from Article 237 GDPR.",
     # Bare juxtaposition against the AI Act.
     "See Article 250 AI Act for the ban on prohibited practices.",
+    # Paraphrased connectives — LLMs often hedge with "under", "in",
+    # "within", "from", "as part of" instead of the canonical "of".
+    "The vendor is liable under Article 237 under GDPR.",
+    "See Article 237 in GDPR for the full text.",
+    "Article 250 within the AI Act prohibits such systems.",
+    "Guidance from Article 89 from DORA requires the register.",
+    "Article 237 as part of GDPR governs this processing.",
 ]
 
 

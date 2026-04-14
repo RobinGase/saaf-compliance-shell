@@ -78,19 +78,23 @@ def _alias_group(framework: str) -> str:
 
 
 # One pattern per framework, matching both "FRAMEWORK Art. N" and
-# "Article N of (the) FRAMEWORK". The article number is captured as
-# group "num". The framework label is carried outside the regex —
-# one compiled pattern per framework, assembled below. `Artikel` is
-# included alongside `Art.`/`Article` so Dutch-language citations
-# against AVG/GDPR are matched by the same rule. The reverse-phrasing
-# connective accepts both English `of (the)` and Dutch `van (de|het)`
-# so "artikel 500 van de AVG" is caught alongside "Article 500 of GDPR".
+# "Article N <connective>? FRAMEWORK". The article number is captured
+# as group "num". `Artikel` is included alongside `Art.`/`Article` so
+# Dutch-language citations against AVG/GDPR are matched by the same rule.
+# The reverse-phrasing connective accepts multiple English prepositions
+# (of, under, in, within, from, as part of) and their Dutch equivalents
+# (van) so paraphrased citations like "Article 237 under GDPR" and
+# "Article 237 as part of GDPR" are caught alongside the canonical
+# "Article 237 of the GDPR" / "artikel 237 van de AVG".
 def _framework_pattern(framework: str) -> re.Pattern[str]:
     alias = _alias_group(framework)
     # Connective between "Article N" and the framework alias is optional
     # so bare juxtaposition ("Article 100 GDPR") is caught alongside the
-    # hedged forms ("Article 100 of the GDPR", "artikel 100 van de AVG").
-    connective = r"(?:(?:of|van)\s+(?:the\s+|de\s+|het\s+)?)?"
+    # hedged forms.
+    connective = (
+        r"(?:(?:of|van|under|in|within|from|as\s+part\s+of)\s+"
+        r"(?:the\s+|de\s+|het\s+)?)?"
+    )
     pattern = (
         rf"(?:{alias}\s*(?:Art\.?|Article|Artikel)\s*(?P<num_a>\d+)"
         rf"|(?:Art\.?|Article|Artikel)\s+(?P<num_b>\d+)\s+{connective}{alias})"

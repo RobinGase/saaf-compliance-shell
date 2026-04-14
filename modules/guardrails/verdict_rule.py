@@ -23,7 +23,10 @@ _VERDICT_PATTERNS = [
     r"\bpasses\s+all\s+(?:the\s+)?requirements\b",
     r"\bis\s+certified\s+(?:for|to|with|under|against)\b",
     r"\bconforms\s+(?:fully\s+)?to\b",
-    r"\bsatisfies\s+all\s+(?:the\s+)?requirements\b",
+    r"\bsatisfies\s+(?:all|each|every)(?:\s+and\s+(?:all|each|every))?(?:\s+\S+){0,3}?\s+(?:requirements?|obligations?)\b",
+    r"\bfulfill(?:ed|s)?(?:\s+(?:all|each|every))?(?:\s+\S+){0,3}?\s+(?:requirements?|obligations?)\b",
+    r"\b(?:requirements?|obligations?)\s+have\s+been\s+(?:fully\s+)?fulfilled\b",
+    r"\bin\s+full\s+compliance\s+with\b",
 ]
 
 # Evidence anchor phrases. Within the window around a verdict, presence

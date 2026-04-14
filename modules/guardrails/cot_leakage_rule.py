@@ -16,6 +16,7 @@ need the nemoguardrails install.
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass
 
@@ -62,10 +63,16 @@ class CoTFinding:
 
 
 def find_cot_markers(text: str) -> list[CoTFinding]:
-    """Return every CoT leakage marker in `text`, in order."""
+    """Return every CoT leakage marker in `text`, in order.
+
+    HTML entities are unescaped before matching so responses that
+    render `&lt;think&gt;` in a rendered chat UI (a common way for a
+    scratchpad to smuggle past a naive regex) still fire this rail.
+    """
+    decoded = html.unescape(text)
     return [
         CoTFinding(marker=m.group(0), start=m.start(), end=m.end())
-        for m in _cot_re.finditer(text)
+        for m in _cot_re.finditer(decoded)
     ]
 
 
