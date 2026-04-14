@@ -136,7 +136,7 @@ The Guardrails self-check LLM call bypasses the router and goes directly to `:80
 
 ### Privacy Router — `modules/router/privacy_router.py` (`:8089`)
 
-A FastAPI app with one route: `POST /v1/chat/completions`. It receives the sanitized request from Guardrails, forwards it to `LOCAL_NIM_URL` (default `http://127.0.0.1:8000`), and appends a `route_decision` audit event with target, latency, and outcome.
+A FastAPI app with one route: `POST /v1/chat/completions`. It receives the sanitized request from Guardrails, forwards it to `LOCAL_NIM_URL` (default `http://127.0.0.1:8000`), and appends a `route_decision` audit event with target, latency, and outcome. The router is a separate process from the saaf-shell runtime, so it writes via `modules.audit.log.append_chained_event` — a cross-process writer that holds an exclusive file lock, re-reads the chain tail, and links the new record into the same hash chain the runtime's `AuditLog` writes. Router events and runtime events can interleave freely and `verify_log` still passes end-to-end.
 
 The router has no auth (`SECURITY_AUDIT.md` finding 4); the iptables rule set in `modules/isolation/network.py` is what stops traffic from any other interface. In production, start under the systemd units in `ops/systemd/` — they bind explicitly to the gateway IP.
 

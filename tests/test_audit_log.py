@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from modules.audit.log import AuditLog, verify_log, GENESIS_PREV_HASH
+from modules.audit.log import (
+    AuditLog,
+    append_chained_event,
+    verify_log,
+    GENESIS_PREV_HASH,
+)
 
 
 @pytest.fixture
@@ -150,3 +155,58 @@ class TestVerifyLog:
         valid, message = verify_log("/nonexistent/audit.jsonl")
         assert valid is False
         assert "not found" in message
+
+
+class TestAppendChainedEvent:
+    """append_chained_event lets a second process join the hash chain."""
+
+    def test_router_event_extends_chain(self, tmp_log):
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/x.txt")
+
+        # Simulate the router writing from its own process
+        appended = append_chained_event(
+            tmp_log,
+            "route_decision",
+            target="local_nim",
+            model="nemotron-nano:8b",
+            latency_ms=12.3,
+        )
+
+        log.record("file_create", path="/audit_workspace/y.txt")
+        log.end_session()
+
+        # Verify the whole chain — including the router's event
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message
+
+        # Router event carries the session context and correct seq
+        assert appended["event_type"] == "route_decision"
+        assert appended["session_id"] == "s1"
+        assert appended["seq"] == 2
+
+    def test_appends_to_empty_log_with_genesis_prev(self, tmp_log):
+        # No session in progress — still produces a well-formed record
+        rec = append_chained_event(tmp_log, "route_decision", target="x", model="m")
+        assert rec["seq"] == 0
+        assert rec["prev_hash"] == GENESIS_PREV_HASH
+        assert "event_hash" in rec
+
+    def test_interleaved_writers_keep_chain(self, tmp_log):
+        """AuditLog and append_chained_event must interleave without breaking the chain.
+
+        Models the production topology: the saaf-shell runtime owns an AuditLog
+        instance, while the privacy router is a separate systemd service that
+        calls append_chained_event for its route_decision events.
+        """
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/a.txt")
+        append_chained_event(tmp_log, "route_decision", target="t", model="m")
+        log.record("file_create", path="/audit_workspace/b.txt")
+        append_chained_event(tmp_log, "route_decision", target="t", model="m")
+        log.end_session()
+
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message

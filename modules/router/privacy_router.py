@@ -5,14 +5,14 @@ No cloud fallback in v1. PII masking is handled by NeMo Guardrails
 before traffic reaches this router.
 """
 
-import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
 
 import httpx
 from fastapi import FastAPI, Request, Response
+
+from modules.audit.log import append_chained_event
 
 LOCAL_NIM_URL = os.environ.get(
     "LOCAL_NIM_URL", "http://127.0.0.1:8000/v1/chat/completions"
@@ -27,17 +27,15 @@ logger = logging.getLogger("privacy_router")
 
 
 def _log_route_decision(target: str, model: str, latency_ms: float) -> None:
-    """Append a route decision event to the audit log."""
-    event = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "event_type": "route_decision",
-        "target": target,
-        "model": model,
-        "latency_ms": round(latency_ms, 2),
-    }
+    """Append a route_decision event to the hash-chained audit log."""
     try:
-        with open(AUDIT_LOG_PATH, "a") as f:
-            f.write(json.dumps(event, separators=(",", ":")) + "\n")
+        append_chained_event(
+            AUDIT_LOG_PATH,
+            "route_decision",
+            target=target,
+            model=model,
+            latency_ms=round(latency_ms, 2),
+        )
     except OSError:
         logger.warning("Could not write route decision to audit log")
 

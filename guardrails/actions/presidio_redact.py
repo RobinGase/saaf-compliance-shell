@@ -29,8 +29,9 @@ class BsnRecognizer(PatternRecognizer):
     """Custom Presidio recognizer for Dutch BSN numbers.
 
     Matches 8-9 digit sequences and validates with the 11-test checksum.
-    Numbers that look like BSNs but fail the 11-test are flagged at lower
-    confidence (0.4) to catch typos and OCR errors.
+    Presidio treats validate_result=True as MAX_SCORE (1.0) and
+    validate_result=False as MIN_SCORE (0.0), so the pattern scores here
+    are floors that only matter when validate_result returns None.
     """
 
     PATTERNS = [
@@ -60,15 +61,9 @@ class BsnRecognizer(PatternRecognizer):
 
     def validate_result(self, pattern_text: str) -> bool | None:
         cleaned = re.sub(r"[\s.\-]", "", pattern_text)
-        if _is_valid_bsn(cleaned):
-            # Valid 11-test — high confidence
-            self.PATTERNS[0].score = 0.85
-            return True
-        else:
-            # Fails 11-test but looks like a BSN — lower confidence
-            # Catches typos, OCR errors in audit documents
-            self.PATTERNS[0].score = 0.4
-            return True
+        # True  -> Presidio promotes score to 1.0 (confirmed BSN)
+        # False -> Presidio drops the match (not a BSN)
+        return _is_valid_bsn(cleaned)
 
 
 def _build_analyzer() -> AnalyzerEngine:
