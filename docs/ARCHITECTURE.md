@@ -44,7 +44,7 @@ The workload sees a normal Linux userspace and one network route: the guardrails
 | Workload / host | KVM hypervisor | Kernel or userspace escape into the host |
 | Workload / outbound network | TAP device + iptables | Reaching anything except guardrails:8088 |
 | Workload / audit log | Host-side file, never mounted | Tampering with the record |
-| Workload / model | Guardrails + router must both pass | PII leaks, prompt injection, off-topic drift |
+| Workload / model | Guardrails + router must both pass | PII leaks, prompt injection, off-topic drift, and the audit-specific output hallucinations the output rails refuse (fabricated citations/versions/CVEs, unfounded verdicts, CoT leakage, absolutist claims, stale attestations, jurisdiction and currency mismatches) |
 | Workload / base rootfs | AgentFS overlay (writes go to overlay, base is read-only) | Modifying the image the next session sees |
 
 ## The path a request takes
@@ -55,7 +55,7 @@ For any request the workload sends to its configured inference URL:
 2. Guardrails runs input rails: Presidio PII redaction, prompt-injection self-check, topical rail.
 3. Guardrails forwards the sanitized request to the Privacy Router on `:8089`.
 4. Router forwards to the local model endpoint on `:8000` (Ollama). Appends a `route_decision` event to the audit log.
-5. Response flows back through guardrails output rails (PII redaction again).
+5. Response flows back through guardrails output rails: PII redaction again, then the nine audit-specific refusal rails documented in [`SECURITY.md`](SECURITY.md) §9. Any rail that fires replaces the response with a refusal; the workload never sees the unsafe text.
 6. Workload receives the sanitized response.
 
 Guardrails' own self-check LLM call bypasses the router and goes directly to `:8000` — self-check prompts contain no user data, so the privacy hop is not needed there.

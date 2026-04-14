@@ -1,7 +1,7 @@
 # Security Audit — saaf-compliance-shell (public main)
 
 **Scope:** code read-only review of modules/, scripts/, pyproject.toml, guardrails/.
-**Status:** Reviewed and committed. Findings 1–5 remain open as tracked hardening items; findings 6 is documented as intentional.
+**Status:** Reviewed and committed at v0.2.0; rail-expansion work through v0.6.0 has not changed the surface covered by this audit (new rails are pure-Python regex modules under `modules/guardrails/*_rule.py` with thin `@action` wrappers — no new network surface, subprocess usage, or manifest fields). Findings 1–5 remain open as tracked hardening items; finding 6 is documented as intentional.
 
 ## Summary
 

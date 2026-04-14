@@ -4,7 +4,7 @@ A runtime enforcement layer for AI agent workloads that need a controlled execut
 
 ## What this is
 
-A Linux-host shell that boots an AI workload inside a Firecracker microVM, tracks every filesystem change through an AgentFS overlay, gates model traffic through NeMo Guardrails and a local-only privacy router, and writes a SHA-256 hash-chained audit log. The workload declares what it needs in `saaf-manifest.yaml`; anything not declared is denied. One host, one VM per session, no cloud dependencies.
+A Linux-host shell that boots an AI workload inside a Firecracker microVM, tracks every filesystem change through an AgentFS overlay, gates model traffic through NeMo Guardrails (PII redaction, injection preflight, topical rail, and nine output rails that refuse audit-specific hallucinations — fabricated citations, wrong-currency fines, unfounded verdicts, chain-of-thought leakage, stale attestations, absolutist claims, jurisdiction mismatches, fabricated standards versions, fabricated CVEs), routes inference through a local-only privacy router, and writes a SHA-256 hash-chained audit log. The workload declares what it needs in `saaf-manifest.yaml`; anything not declared is denied. One host, one VM per session, no cloud dependencies.
 
 ## What this is not
 
@@ -83,7 +83,7 @@ Grouped by what you're trying to do.
 
 ## Current status
 
-End-to-end path works: Firecracker + AgentFS + Guardrails + Router + audit log run on a single Linux host, and Vendor_Guard produces real scorecard, gap register, and audit memo artefacts through the VM path. The modular branch is proven enough to support real testing work; it is not yet production-ready. Tracked next steps and open decisions live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Latest release: **v0.6.0** — nine output rails, CI-gated branch policy, reproducible release tarball on `dev/main`. The end-to-end path works: Firecracker + AgentFS + Guardrails + Router + audit log run on a single Linux host, and Vendor_Guard produces real scorecard, gap register, and audit memo artefacts through the VM path. The modular branch is proven enough to support real testing work; it is not yet production-ready. Tracked next steps and open decisions live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Development workflow
 
