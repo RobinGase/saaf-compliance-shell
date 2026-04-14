@@ -20,6 +20,7 @@ flow output rails $output_text
   check verdict evidence $output_text
   check absolutist language $output_text
   check stale attestations $output_text
+  check jurisdiction scope $output_text
 
 flow check cot leakage $output_text
   """Block responses that leak chain-of-thought scratchpad markup."""
@@ -54,6 +55,13 @@ flow check stale attestations $output_text
   $stale = await StaleDateCheckAction(text=$output_text)
   if $stale.has_stale_attestation
     bot refuse "The response cites an attestation or certificate that is more than two years old as current evidence. Audit evidence has a shelf life — re-issue the answer with a current attestation, or explicitly note that the referenced evidence is historical."
+    abort
+
+flow check jurisdiction scope $output_text
+  """Block responses applying a regulation to an entity outside that regulation's jurisdiction."""
+  $juris = await JurisdictionCheckAction(text=$output_text)
+  if $juris.has_jurisdiction_mismatch
+    bot refuse "The response applies a regulation to an entity outside that regulation's jurisdictional scope (e.g. HIPAA to an EU entity, DORA to a US-only company). Re-issue the answer citing regulations that actually govern the entity in question, or state the mismatch explicitly."
     abort
 
 flow mask pii in user input $input_text
