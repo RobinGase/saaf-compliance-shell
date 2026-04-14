@@ -53,6 +53,17 @@ FABRICATED_CASES = [
     "Article 250 within the AI Act prohibits such systems.",
     "Guidance from Article 89 from DORA requires the register.",
     "Article 237 as part of GDPR governs this processing.",
+    # Possessive-prefix phrasing — framework name before the article.
+    "GDPR's Article 237 is the relevant provision.",
+    "DORA's Article 89 governs the ICT register.",
+    # Em-dash parenthetical qualifier.
+    "Article 237 — see GDPR — requires consent.",
+    # Comma-delimited qualifier.
+    "Article 237, per GDPR, requires consent.",
+    # Intervening generic noun between the connective and a parenthesised
+    # framework name.
+    "The obligation flows from Article 237 of the regulation (GDPR).",
+    "Under Article 89 of the regulation (DORA), the ICT register is required.",
 ]
 
 

@@ -41,6 +41,15 @@ BLOCK_CASES = [
     "Acme fulfilled each requirement in the DORA framework.",
     # Non-hedged "in full compliance".
     "The vendor is in full compliance with NIS2.",
+    # Nominalization forms — "compliance"/"conformance" as a noun object
+    # rather than a predicate adjective. LLM verdict sections often prefer
+    # these constructions and earlier patterns missed them.
+    "GDPR conformance has been demonstrated.",
+    "Full compliance with GDPR has been achieved.",
+    "The vendor demonstrates compliance with GDPR.",
+    "The vendor achieved GDPR compliance.",
+    "GDPR compliance was established.",
+    "The vendor shows complete compliance with GDPR.",
 ]
 
 

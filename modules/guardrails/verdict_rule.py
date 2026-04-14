@@ -27,6 +27,13 @@ _VERDICT_PATTERNS = [
     r"\bfulfill(?:ed|s)?(?:\s+(?:all|each|every))?(?:\s+\S+){0,3}?\s+(?:requirements?|obligations?)\b",
     r"\b(?:requirements?|obligations?)\s+have\s+been\s+(?:fully\s+)?fulfilled\b",
     r"\bin\s+full\s+compliance\s+with\b",
+    # Nominalization forms — "compliance"/"conformance" as a noun object.
+    # LLM verdict sections frequently use these constructions instead of
+    # the active-voice "is compliant" shape above: "compliance was
+    # demonstrated", "GDPR compliance has been achieved", "the vendor
+    # shows complete compliance".
+    r"\b(?:demonstrates?|demonstrated|achieves?|achieved|establishes?|established|shows?|showed|confirms?|confirmed)\s+(?:full\s+|complete\s+|total\s+)?(?:\S+\s+){0,2}?(?:compliance|conformance)\b",
+    r"\b(?:compliance|conformance)(?:\s+with\s+\S+)?\s+(?:has\s+been|have\s+been|was|were|is)\s+(?:fully\s+|completely\s+)?(?:demonstrated|achieved|established|confirmed|shown)\b",
 ]
 
 # Evidence anchor phrases. Within the window around a verdict, presence

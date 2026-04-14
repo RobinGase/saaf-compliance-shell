@@ -88,16 +88,36 @@ def _alias_group(framework: str) -> str:
 # "Article 237 of the GDPR" / "artikel 237 van de AVG".
 def _framework_pattern(framework: str) -> re.Pattern[str]:
     alias = _alias_group(framework)
-    # Connective between "Article N" and the framework alias is optional
-    # so bare juxtaposition ("Article 100 GDPR") is caught alongside the
-    # hedged forms.
+    # Reverse-phrasing connective between "Article N" and the framework
+    # alias. Covers four shapes:
+    #   1. Canonical prepositions: "of", "van", "under", "in", "within",
+    #      "from", "as part of", each with an optional definite article
+    #      ("the", "de", "het"). An optional generic noun ("regulation",
+    #      "directive", "act") may sit between the article and a
+    #      parenthesised framework name — "Article 237 of the regulation
+    #      (GDPR)".
+    #   2. Em-dash or en-dash clusters with optional "see"/"per"/"under":
+    #      "Article 237 — see GDPR —".
+    #   3. Comma-delimited qualifier: "Article 237, per GDPR, ...".
+    #   4. Bare juxtaposition: "Article 100 GDPR" (whitespace only).
     connective = (
-        r"(?:(?:of|van|under|in|within|from|as\s+part\s+of)\s+"
-        r"(?:the\s+|de\s+|het\s+)?)?"
+        r"(?:"
+        r"\s+(?:of|van|under|in|within|from|as\s+part\s+of)\s+"
+        r"(?:the\s+|de\s+|het\s+)?"
+        r"(?:(?:regulation|directive|act|law|rules?)\s*\(\s*)?"
+        r"|"
+        r"\s*[—–]+\s*(?:see\s+|per\s+|under\s+)?"
+        r"|"
+        r"\s*,\s*(?:per\s+|see\s+|under\s+)"
+        r"|"
+        r"\s+"
+        r")"
     )
+    # Branch A also accepts a possessive suffix on the alias ("GDPR's
+    # Article 237") and both ASCII and typographic apostrophes.
     pattern = (
-        rf"(?:{alias}\s*(?:Art\.?|Article|Artikel)\s*(?P<num_a>\d+)"
-        rf"|(?:Art\.?|Article|Artikel)\s+(?P<num_b>\d+)\s+{connective}{alias})"
+        rf"(?:{alias}(?:['\u2019]s)?\s*(?:Art\.?|Article|Artikel)\s*(?P<num_a>\d+)"
+        rf"|(?:Art\.?|Article|Artikel)\s+(?P<num_b>\d+){connective}{alias}\s*\)?)"
     )
     return re.compile(pattern, re.IGNORECASE)
 
