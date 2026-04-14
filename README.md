@@ -45,6 +45,80 @@ saaf-shell verify-log --log /path/to/audit.jsonl
 
 Full host setup and smoke test: [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
 
+## Components
+
+Six pieces. Each is loosely coupled — you can inspect, configure, or replace any of them without unpicking the others. In-depth walkthroughs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#components-in-depth).
+
+### 1. Manifest — `saaf-manifest.yaml`
+
+The declarative contract between a workload and the shell. A workload ships one at its repo root listing what it needs (entrypoint, writable paths, network rule, resource limits, PII recognizers, retention). Anything not declared is denied.
+
+```bash
+saaf-shell validate --manifest /path/to/saaf-manifest.yaml
+```
+
+Validation runs before every `run`; an invalid manifest never boots. Schema: [`modules/manifest/validator.py`](modules/manifest/validator.py). Fixtures: [`tests/fixtures/`](tests/fixtures/).
+
+### 2. Isolation layer — `modules/isolation/`
+
+Firecracker microVM + AgentFS overlay + TAP device + iptables. The workload runs inside a guest; the host filesystem is never mounted, and outbound traffic is restricted to `gateway:8088`.
+
+- `firecracker.py` — VM config + boot.
+- `agentfs.py` — SQLite-backed overlay, NFS-exported to the guest, host-owned.
+- `network.py` — TAP + iptables; validates `network.allow` against the v1 single-rule policy.
+- `runtime.py` — orchestrates setup and teardown around a session.
+
+Driven by `saaf-shell run`. To inspect what the workload wrote to disk:
+
+```bash
+saaf-shell diff --agent-id <session-id>
+```
+
+### 3. Guardrails service — `modules/guardrails/` (HTTP on `:8088`)
+
+The guarded channel the workload talks to instead of the model. Request flow: PII redaction (Presidio + Dutch BSN) → prompt-injection preflight → topical rail → forward to Privacy Router → response re-runs PII redaction plus the ten output rails listed in [SECURITY.md §9](docs/SECURITY.md#9-unsafe-claim-shapes-in-model-output).
+
+```bash
+python -m modules.guardrails.service --config-path guardrails/
+curl -s http://127.0.0.1:8088/health
+```
+
+Each rail is a thin `@action` in `guardrails/actions/` wrapping a pure-Python rule in `modules/guardrails/*_rule.py`. Colang 2.0 flows: [`guardrails/rails.co`](guardrails/rails.co). Rules are regex-based and CI-runnable without a nemoguardrails install.
+
+### 4. Privacy Router — `modules/router/privacy_router.py` (HTTP on `:8089`)
+
+Local-only proxy between Guardrails and the inference endpoint. Every inference call must resolve to a local endpoint; the router appends a `route_decision` event to the audit log. v1 has no cloud fallback — deliberate.
+
+```bash
+python -m modules.router.privacy_router
+curl -s http://127.0.0.1:8089/health
+```
+
+Target endpoint comes from `LOCAL_NIM_URL` (default `http://127.0.0.1:8000`).
+
+### 5. Audit log — `modules/audit/`
+
+Every session event — start, route decision, rail fire, end — lands as canonical JSON in `/var/log/openshell/audit.jsonl`, SHA-256 chained. Single-writer lock; never mounted into the guest.
+
+```bash
+saaf-shell verify-log --log /var/log/openshell/audit.jsonl
+```
+
+Verifier walks the chain and reports the first broken link. Truncation is expected on crash and handled gracefully — the log is replayable up to the last complete record. Multi-session logs are supported (a `session_start` record resets the chain).
+
+### 6. CLI — `cli.py` (entry point `saaf-shell`)
+
+Single operator entry point.
+
+| Subcommand | Purpose |
+|---|---|
+| `saaf-shell validate --manifest <path>` | Check a manifest without booting anything |
+| `saaf-shell run --manifest <path>` | Full session: validate → setup → VM → teardown |
+| `saaf-shell diff --agent-id <id>` | Show what the workload wrote to `/audit_workspace` |
+| `saaf-shell sessions` | List past sessions recorded in the audit log |
+| `saaf-shell verify-log --log <path>` | Walk the hash chain and report the first break |
+| `saaf-shell test --suite <name>` | Run a named test suite (e.g. `red-team`) |
+
 ## Documentation
 
 Grouped by what you're trying to do.
