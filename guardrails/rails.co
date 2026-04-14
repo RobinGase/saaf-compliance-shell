@@ -24,6 +24,7 @@ flow output rails $output_text
   check currency scope $output_text
   check standards version $output_text
   check cve validity $output_text
+  check regulator validity $output_text
 
 flow check cot leakage $output_text
   """Block responses that leak chain-of-thought scratchpad markup."""
@@ -86,6 +87,13 @@ flow check cve validity $output_text
   $cve = await CVECheckAction(text=$output_text)
   if $cve.has_fabricated_cve
     bot refuse "The response cites a CVE identifier whose shape or year is invalid (e.g. 'CVE-2099-0001', 'CVE-2024-1', 'CVE 2023 0001'). Re-issue the answer citing an actually-published CVE, or drop the identifier if uncertain."
+    abort
+
+flow check regulator validity $output_text
+  """Block responses citing supervisory bodies that do not exist."""
+  $reg = await RegulatorCheckAction(text=$output_text)
+  if $reg.has_fabricated_regulator
+    bot refuse "The response names a supervisory or regulatory body that does not exist (e.g. 'European Privacy Authority', 'EU Cybersecurity Commission', 'UK Privacy Authority'). Re-issue the answer citing the correct body (EDPB, ENISA, ICO, etc.), or drop the reference if uncertain."
     abort
 
 flow mask pii in user input $input_text
