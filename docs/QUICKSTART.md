@@ -146,3 +146,5 @@ Once the smoke path works, have a look at:
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — how the pieces fit together.
 - [`SECURITY.md`](SECURITY.md) — what the shell defends against.
 - [`implementation_plan.md`](implementation_plan.md) — the deep technical reference.
+
+For a persistent install (systemd-managed services under `/opt/saaf/shell` instead of `nohup` under `/tmp`), see [`ops/systemd/README.md`](../ops/systemd/README.md).
