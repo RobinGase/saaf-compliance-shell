@@ -81,12 +81,14 @@ def _alias_group(framework: str) -> str:
 # One pattern per framework, matching both "FRAMEWORK Art. N" and
 # "Article N of (the) FRAMEWORK". The article number is captured as
 # group "num". The framework label is carried outside the regex —
-# one compiled pattern per framework, assembled below.
+# one compiled pattern per framework, assembled below. `Artikel` is
+# included alongside `Art.`/`Article` so Dutch-language citations
+# against AVG/GDPR are matched by the same rule.
 def _framework_pattern(framework: str) -> re.Pattern[str]:
     alias = _alias_group(framework)
     pattern = (
-        rf"(?:{alias}\s*(?:Art\.?|Article)\s*(?P<num_a>\d+)"
-        rf"|(?:Art\.?|Article)\s*(?P<num_b>\d+)\s*of\s+(?:the\s+)?{alias})"
+        rf"(?:{alias}\s*(?:Art\.?|Article|Artikel)\s*(?P<num_a>\d+)"
+        rf"|(?:Art\.?|Article|Artikel)\s*(?P<num_b>\d+)\s*of\s+(?:the\s+)?{alias})"
     )
     return re.compile(pattern, re.IGNORECASE)
 

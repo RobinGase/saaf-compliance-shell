@@ -70,7 +70,7 @@ Four output rails target failure modes specific to audit-assistant agents. Each 
 
 **Result:** a careless or jailbroken model whose output would read as marketing copy (or leak its scratchpad) is refused at the output rail, not returned to the workload. Matching is regex-based and intentionally narrow — hedged audit language ("designed to", "expected to", "per SOC 2 §CC6.7") is not flagged.
 
-**Known limits:** the citation rail matches only `Art.` / `Article` (not the Dutch `Artikel` or variants that omit `of`). Negated absolutist phrasings ("not 100% secure") still trip the rail — rewording around the phrase is trivial and the bare phrase should not appear in deliverables anyway. The stale-attestation rail has year-level granularity only (no issue-month extraction); the 2-year threshold is a tunable default, not a hard regulatory rule.
+**Known limits:** the citation rail matches `Art.` / `Article` / `Artikel` (Dutch); variants that omit `of` in reverse phrasing are not detected. Negated absolutist phrasings ("not 100% secure") still trip the rail — rewording around the phrase is trivial and the bare phrase should not appear in deliverables anyway. The stale-attestation rail has year-level granularity only (no issue-month extraction); the 2-year threshold is a tunable default, not a hard regulatory rule.
 
 ## What the shell does not defend against
 

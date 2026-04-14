@@ -32,12 +32,13 @@ FABRICATED_CASES = [
     "The system is prohibited under AI Act Article 250.",
     # Reverse phrasing: "Article X of FRAMEWORK".
     "See Article 900 of GDPR for the full text.",
-    # Dutch abbreviation for GDPR.
-    "Op grond van AVG Artikel 500 moet de verwerker...",  # noqa - triggers on "AVG Art...500"
+    # Dutch: AVG is the Dutch name for GDPR; "Artikel" is the Dutch
+    # word for Article. Same 99-article ceiling applies.
+    "Op grond van AVG Artikel 500 moet de verwerker de gegevens verwijderen.",
 ]
 
 
-@pytest.mark.parametrize("text", FABRICATED_CASES[:5])  # skip the Dutch-verb case until we confirm Artikel matches
+@pytest.mark.parametrize("text", FABRICATED_CASES)
 def test_fabricated_citations_are_flagged(text: str) -> None:
     findings = find_article_citations(text)
     assert findings, f"no citation detected in: {text!r}"
@@ -63,6 +64,8 @@ VALID_CASES = [
     "AI Act Article 6 defines high-risk systems.",
     # Sub-paragraph numbers — the rule extracts the main article number only.
     "GDPR Art. 6(1)(a) permits processing based on consent.",
+    # Dutch in-range citation — AVG + Artikel maps to GDPR's 99-article ceiling.
+    "AVG Artikel 5 stelt de beginselen van rechtmatige verwerking.",
 ]
 
 
