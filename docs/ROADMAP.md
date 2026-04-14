@@ -25,7 +25,7 @@ The modular branch is considered "proven enough to support real testing work." I
 2. **Kernel cmdline hardening.** Manifest `agent.env` values are only space-escaped when building Firecracker boot args. Newline / quote validation is still open — see `SECURITY_AUDIT.md` finding 1.
 3. **HTTPS default for the rootfs builder.** `scripts/build-rootfs.sh` defaults to `http://archive.ubuntu.com`. Package signing still protects integrity, but flipping the default to HTTPS removes the MITM metadata concern.
 4. **Dependency lock + `pip-audit` in CI.** `pyproject.toml` only pins lower bounds. CI should fail on known advisories.
-5. **Output-rail matrix expansion.** Ten rails land in v0.7.0 (regulator-name fabrication added). Candidates still queued: fabricated case-law and enforcement-action IDs, fabricated incident-notification deadlines (GDPR 72h, NIS2 24h/72h/1mo, DORA 4h). Each new rail follows the established pattern — pure-Python rule under `modules/guardrails/*_rule.py`, thin `@action` wrapper, matrix tests, `rails.co` wiring, `docs/SECURITY.md` row.
+5. **Output-rail matrix expansion.** Ten rails landed by v0.7.0; v0.8.0 tuned four of them (citation, verdict, absolutism, CoT) against adversarial paraphrases surfaced by an independent review. Candidates still queued: fabricated case-law and enforcement-action IDs, fabricated incident-notification deadlines (GDPR 72h, NIS2 24h/72h/1mo, DORA 4h). Each new rail follows the established pattern — pure-Python rule under `modules/guardrails/*_rule.py`, thin `@action` wrapper, matrix tests, `rails.co` wiring, `docs/SECURITY.md` row.
 
 ## What is next (medium term)
 

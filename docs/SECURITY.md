@@ -18,9 +18,9 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 ### 2. Outbound network escape
 
-**Defence:** The VM has a single TAP interface. Host iptables rules forward port 8088 (guardrails) from the TAP gateway to `127.0.0.1:8088` and drop everything else on that interface. There is no masquerade rule, so there is no path to the internet.
+**Defence:** The VM has a single TAP interface. Host iptables rules forward port 8088 (guardrails) from the TAP gateway to `127.0.0.1:8088` and drop everything else on that interface, on both the INPUT and FORWARD chains so the policy holds even if the host has `net.ipv4.ip_forward=1`. IPv6 is disabled on the tap via `net.ipv6.conf.<tap>.disable_ipv6=1` and mirrored ip6tables DROP rules catch any traffic that still reaches an ip6tables path. There is no masquerade rule, so there is no path to the internet. At startup the shell refuses to run when either `/proc/sys/net/ipv4/ip_forward` or `/proc/sys/net/ipv6/conf/all/forwarding` is `1` unless the operator sets `SAAF_ALLOW_IP_FORWARD=1` to acknowledge the shared-host risk.
 
-**Result:** Any outbound request that is not `gateway:8088` is dropped at the host kernel. The workload cannot reach `127.0.0.1:8000` (the model), `127.0.0.1:8089` (the router), DNS, or the internet.
+**Result:** Any outbound request that is not `gateway:8088` is dropped at the host kernel on both address families. The workload cannot reach `127.0.0.1:8000` (the model), `127.0.0.1:8089` (the router), DNS, or the internet.
 
 ### 3. PII leakage to the model or the logs
 
