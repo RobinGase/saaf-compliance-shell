@@ -93,21 +93,20 @@ class AuditLog:
         return event
 
     def _count_session_events(self, session_id: str | None) -> int:
-        """Return the number of events written since this session's genesis.
+        """Return the number of events whose ``session_id`` matches this session.
 
-        Scans the log for the ``session_start`` record matching ``session_id``
-        and counts every record from that point onward, inclusive. Individual
-        event records (``file_create``, ``pii_redaction``, ``guardrails_*``)
-        don't carry ``session_id``, so counting by start-position is the only
-        way to include out-of-process writers (the privacy router and the
-        guardrails service) in the total. Ignores lines that don't parse —
+        Every record written via ``append_chained_event`` carries the active
+        session_id (propagated from the tail in ``_read_chain_tail``), so
+        filtering by ``session_id`` correctly counts events from every
+        writer — the ``AuditLog`` instance itself, the privacy router, and
+        the guardrails service — without double-counting when a second
+        session interleaves on the same log. Ignores lines that don't parse;
         those are crash-truncated tails that ``append_chained_event`` heals
         on the next write.
         """
         if session_id is None or not self._path.exists():
             return 0
         count = 0
-        found_start = False
         with self._path.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -117,15 +116,8 @@ class AuditLog:
                     record = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if not found_start:
-                    if (
-                        record.get("event_type") == "session_start"
-                        and record.get("session_id") == session_id
-                    ):
-                        found_start = True
-                        count = 1
-                    continue
-                count += 1
+                if record.get("session_id") == session_id:
+                    count += 1
         return count
 
     def _write_event(self, **fields) -> dict:

@@ -62,11 +62,17 @@ MAX_GUARDRAILS_PAYLOAD_CHARS = 12000
 
 
 @lru_cache(maxsize=8)
-def get_rails(config_path: str, model_name: str | None = None):
+def _build_rails(config_path: str, model_name: str | None, self_check_url: str):
+    """Construct an ``LLMRails`` for a given config + self-check URL.
+
+    ``self_check_url`` is part of the cache key so that a change to
+    ``SAAF_SELF_CHECK_URL`` between requests rebuilds the config with the
+    new URL instead of silently reusing a cached instance pointing at the
+    old one.
+    """
     os.environ.setdefault("OPENAI_API_KEY", "not-used")
 
     cfg = RailsConfig.from_path(config_path)
-    self_check_url = os.environ.get("SAAF_SELF_CHECK_URL")
     if self_check_url:
         updated_models = []
         for model in cfg.models:
@@ -76,6 +82,17 @@ def get_rails(config_path: str, model_name: str | None = None):
         cfg = cfg.model_copy(update={"models": updated_models})
 
     return LLMRails(cfg)
+
+
+def get_rails(config_path: str, model_name: str | None = None):
+    """Return a cached ``LLMRails`` instance for ``config_path``.
+
+    Reads ``SAAF_SELF_CHECK_URL`` fresh on every call and includes it in
+    the underlying cache key — operators can redirect the self-check
+    endpoint without restarting the service.
+    """
+    self_check_url = os.environ.get("SAAF_SELF_CHECK_URL", "")
+    return _build_rails(config_path, model_name, self_check_url)
 
 
 def create_app(config_path: str | Path) -> FastAPI:

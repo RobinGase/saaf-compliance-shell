@@ -50,6 +50,25 @@ class TestAuditLog:
         assert end["event_type"] == "session_end"
         assert end["event_count"] == 3  # genesis + 1 record + end itself
 
+    def test_session_end_count_isolates_concurrent_sessions(self, tmp_log):
+        """Two sessions interleaving on the same log must each report only
+        their own events in ``event_count`` — the position-based counter this
+        replaces double-counted cross-session writers.
+        """
+        a = AuditLog(tmp_log)
+        a.start_session(session_id="sess-a", policy_hash="x", manifest_hash="y")
+        a.record("vm_exit", exit_code=0)
+
+        b = AuditLog(tmp_log)
+        b.start_session(session_id="sess-b", policy_hash="x", manifest_hash="y")
+        b.record("vm_exit", exit_code=0)
+
+        end_a = a.end_session()
+        end_b = b.end_session()
+
+        assert end_a["event_count"] == 3  # start + vm_exit + end for sess-a
+        assert end_b["event_count"] == 3  # start + vm_exit + end for sess-b
+
     def test_file_written_as_jsonl(self, tmp_log):
         log = AuditLog(tmp_log)
         log.start_session(session_id="test-001", policy_hash="a", manifest_hash="b")

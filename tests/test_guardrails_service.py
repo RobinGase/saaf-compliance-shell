@@ -158,12 +158,73 @@ models:
     monkeypatch.setattr("modules.guardrails.service.LLMRails", FakeLLMRails, raising=False)
     monkeypatch.setattr("modules.guardrails.service.RailsConfig", FakeRailsConfig, raising=False)
 
-    from modules.guardrails.service import get_rails
+    from modules.guardrails.service import _build_rails, get_rails
 
-    get_rails.cache_clear()
+    _build_rails.cache_clear()
     get_rails(str(source))
 
     assert captured["self_check_url"] == "http://192.0.2.1:8000/v1"
+
+
+def test_get_rails_rebuilds_when_self_check_url_changes(monkeypatch, tmp_path: Path) -> None:
+    """Changing ``SAAF_SELF_CHECK_URL`` between requests must rebuild the
+    rails against the new URL. The old ``@lru_cache`` on ``get_rails`` keyed
+    only on (config_path, model_name), so a cached instance would silently
+    keep pointing at the first URL seen."""
+    source = tmp_path / "guardrails"
+    source.mkdir()
+    (source / "config.yml").write_text(
+        """
+colang_version: "2.x"
+models:
+  - type: main
+    engine: openai
+    model: test-main
+    parameters:
+      base_url: http://127.0.0.1:8089/v1
+  - type: self_check
+    engine: openai
+    model: test-self
+    parameters:
+      base_url: http://127.0.0.1:8000/v1
+""".strip(),
+        encoding="utf-8",
+    )
+
+    captured: list[str] = []
+
+    class FakeRailsConfig:
+        @classmethod
+        def from_path(cls, path):
+            import yaml
+
+            data = yaml.safe_load((source / "config.yml").read_text(encoding="utf-8"))
+            model_objs = [type("Model", (), model)() for model in data["models"]]
+            return type("Cfg", (), {"models": model_objs, "model_copy": lambda self, update: type("Cfg", (), {**self.__dict__, **update})()})()
+
+    class FakeLLMRails:
+        def __init__(self, cfg):
+            captured.append(
+                [m.parameters["base_url"] for m in cfg.models if m.type == "self_check"][0]
+            )
+
+    monkeypatch.setattr("modules.guardrails.service.LLMRails", FakeLLMRails, raising=False)
+    monkeypatch.setattr("modules.guardrails.service.RailsConfig", FakeRailsConfig, raising=False)
+
+    from modules.guardrails.service import _build_rails, get_rails
+
+    _build_rails.cache_clear()
+
+    monkeypatch.setenv("SAAF_SELF_CHECK_URL", "http://first.example/v1")
+    get_rails(str(source))
+
+    monkeypatch.setenv("SAAF_SELF_CHECK_URL", "http://second.example/v1")
+    get_rails(str(source))
+
+    assert captured == [
+        "http://first.example/v1",
+        "http://second.example/v1",
+    ]
 
 
 def test_chat_completions_blocks_obvious_prompt_injection(tmp_path: Path) -> None:
