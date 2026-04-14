@@ -23,3 +23,35 @@ jobs:
 
       - name: Run non-Presidio test suite
         run: python -m pytest tests/ --ignore=tests/test_presidio_redact.py -q
+
+  presidio:
+    # Presidio + spaCy model are heavy to install, so they get their own job.
+    # This gates the PII redaction path (Dutch BSN recognizer + en_core_web_lg
+    # person/email detection) on every push instead of being manually verified.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache spaCy model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: presidio-spacy-${{ runner.os }}-py312-v1
+          restore-keys: |
+            presidio-spacy-${{ runner.os }}-py312-
+
+      - name: Install Presidio + spaCy model
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,nlp]
+          # en_core_web_lg matches presidio-analyzer's default NER configuration.
+          python -m spacy download en_core_web_lg
+
+      - name: Run Presidio test suite
+        run: python -m pytest tests/test_presidio_redact.py -q
