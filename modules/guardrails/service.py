@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import yaml
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -153,10 +154,10 @@ def _recover_quoted_llm_value(error_text: str) -> str | None:
 
 
 def resolve_main_model_config(config_path: str | Path) -> tuple[str, str]:
-    cfg = RailsConfig.from_path(str(config_path))
-    for model in cfg.models:
-        if model.type == "main":
-            return model.model, model.parameters["base_url"] + "/chat/completions"
+    config = yaml.safe_load((Path(config_path) / "config.yml").read_text(encoding="utf-8"))
+    for model in config.get("models", []):
+        if model.get("type") == "main":
+            return model["model"], model["parameters"]["base_url"] + "/chat/completions"
     raise RuntimeError("No main model configured")
 
 
