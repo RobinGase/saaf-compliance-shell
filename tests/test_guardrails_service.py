@@ -6,7 +6,10 @@ from fastapi.testclient import TestClient
 from modules.guardrails.service import BYPASS_REFUSAL, create_app
 
 
-def test_health_reports_config_id_and_path(tmp_path: Path) -> None:
+def test_health_reports_config_id_and_path(monkeypatch, tmp_path: Path) -> None:
+    audit_log = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(audit_log))
+
     app = create_app(config_path=tmp_path / "guardrails")
     client = TestClient(app)
 
@@ -17,7 +20,28 @@ def test_health_reports_config_id_and_path(tmp_path: Path) -> None:
         "status": "ok",
         "config_id": "guardrails",
         "config_path": str((tmp_path / "guardrails").resolve()),
+        "audit_log_path": str(audit_log),
     }
+
+
+def test_health_returns_503_when_audit_log_not_writable(monkeypatch, tmp_path: Path) -> None:
+    """An unwritable audit sink must flunk /health so an orchestrator pulls the pod."""
+    readonly_dir = tmp_path / "readonly"
+    readonly_dir.mkdir()
+    # Point AUDIT_LOG_PATH at a file whose parent is a *file*, so any
+    # mkdir/open call must OSError. This is more portable than chmod on
+    # Windows, where FS permissions don't reliably block file writes.
+    not_a_dir = tmp_path / "not_a_dir"
+    not_a_dir.write_text("", encoding="utf-8")
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(not_a_dir / "audit.jsonl"))
+
+    app = create_app(config_path=tmp_path / "guardrails")
+    client = TestClient(app)
+
+    resp = client.get("/health")
+
+    assert resp.status_code == 503
+    assert "audit log not writable" in resp.json()["detail"]
 
 
 def test_chat_completions_uses_single_config_rails(monkeypatch, tmp_path: Path) -> None:
@@ -379,9 +403,11 @@ def test_preflight_patterns_are_configurable_via_config_yml(
     monkeypatch.setenv("AUDIT_LOG_PATH", str(audit_log))
 
     # Clear the patterns cache so this test's config is reloaded rather
-    # than a cached copy from an earlier test.
-    from modules.guardrails.service import _load_preflight_patterns
-    _load_preflight_patterns.cache_clear()
+    # than a cached copy from an earlier test. As of v0.8.6 the cache is
+    # mtime-keyed and self-invalidates, but we still clear the LRU so
+    # tmp_path churn doesn't fill the 8-slot bucket across the suite.
+    from modules.guardrails.service import _load_preflight_patterns_cached
+    _load_preflight_patterns_cached.cache_clear()
 
     app = create_app(config_path=config_dir)
     client = TestClient(app)
@@ -397,6 +423,43 @@ def test_preflight_patterns_are_configurable_via_config_yml(
     events = _read_audit(audit_log)
     assert events[-1]["pattern"] == "custom operator phrase"
     assert events[-1]["category"] == "injection"
+
+
+def test_preflight_patterns_reload_on_config_mtime_change(tmp_path: Path) -> None:
+    """A live edit to config.yml must take effect on the next call without
+    a restart. Regression test for H7: prior to mtime-keyed caching, the
+    first load of a config dir was cached forever, and operators editing
+    their pattern list in place would see no behaviour change."""
+    import os as _os
+
+    from modules.guardrails.service import (
+        _load_preflight_patterns,
+        _load_preflight_patterns_cached,
+    )
+
+    config_dir = tmp_path / "guardrails"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yml"
+    config_file.write_text(
+        "preflight_injection_patterns:\n  - \"first pattern\"\n",
+        encoding="utf-8",
+    )
+    _load_preflight_patterns_cached.cache_clear()
+
+    injection, _ = _load_preflight_patterns(str(config_dir))
+    assert injection == ("first pattern",)
+
+    # Rewrite with a bumped mtime. Python's stat resolution on Windows is
+    # 100ns; bump explicitly so the test doesn't depend on wall-clock drift.
+    config_file.write_text(
+        "preflight_injection_patterns:\n  - \"second pattern\"\n",
+        encoding="utf-8",
+    )
+    new_stat = config_file.stat()
+    _os.utime(config_file, ns=(new_stat.st_atime_ns, new_stat.st_mtime_ns + 1_000_000))
+
+    injection, _ = _load_preflight_patterns(str(config_dir))
+    assert injection == ("second pattern",)
 
 
 def test_oversized_bypass_with_clean_proxy_logs_scan_only(monkeypatch, tmp_path: Path) -> None:

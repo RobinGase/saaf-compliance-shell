@@ -178,10 +178,30 @@ def create_app(config_path: str | Path) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, str]:
+        """Liveness + audit-writability probe.
+
+        The service is useless without an audit sink — a silently
+        unwritable log path looks healthy to an orchestrator but
+        leaves every downstream rail-fire unrecorded. Probe the
+        configured path by opening it in append mode (creates the
+        parent if needed). Any ``OSError`` maps to 503 so the
+        orchestrator can pull the pod out of rotation.
+        """
+        log_path = Path(os.environ.get("AUDIT_LOG_PATH", DEFAULT_AUDIT_LOG_PATH))
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_path, "a", encoding="utf-8"):
+                pass
+        except OSError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"audit log not writable: {log_path} ({exc.__class__.__name__})",
+            ) from exc
         return {
             "status": "ok",
             "config_id": config_path.name,
             "config_path": str(config_path),
+            "audit_log_path": str(log_path),
         }
 
     @app.post("/v1/chat/completions")
@@ -356,14 +376,18 @@ def _proxy_to_main_model(config_path: str | Path, body: ChatCompletionRequest) -
 
 
 @lru_cache(maxsize=8)
-def _load_preflight_patterns(config_path: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Return (injection_patterns, off_topic_patterns) from config.yml.
+def _load_preflight_patterns_cached(
+    config_path: str, mtime_ns: int
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Cache layer keyed on (config_path, mtime_ns).
 
-    Each list is loaded once per config_path and cached. If either key
-    is missing from config.yml the in-module DEFAULT_* tuple is used,
-    so an older config file stays working. Patterns are lowercased on
-    read so the per-request match can be a cheap substring test.
+    ``mtime_ns`` is part of the cache key so an operator can edit
+    ``config.yml`` on a running service and the next request picks up
+    the new patterns without a restart. Stat is cheap (≈1µs); parsing
+    YAML is not. The mtime comes from ``_load_preflight_patterns``,
+    which does the stat.
     """
+    del mtime_ns  # only used for cache-key invalidation
     config_file = Path(config_path) / "config.yml"
     try:
         config = yaml.safe_load(config_file.read_text(encoding="utf-8")) or {}
@@ -375,6 +399,24 @@ def _load_preflight_patterns(config_path: str) -> tuple[tuple[str, ...], tuple[s
         tuple(p.lower() for p in injection),
         tuple(p.lower() for p in off_topic),
     )
+
+
+def _load_preflight_patterns(
+    config_path: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return (injection_patterns, off_topic_patterns) from config.yml.
+
+    Checks the config file's mtime on every call and passes it through
+    to the cache key, so a live edit of ``config.yml`` takes effect on
+    the next request. Missing config.yml → -1 sentinel → cached under a
+    stable key; the cached value is the DEFAULT_* tuples.
+    """
+    config_file = Path(config_path) / "config.yml"
+    try:
+        mtime_ns = config_file.stat().st_mtime_ns
+    except OSError:
+        mtime_ns = -1
+    return _load_preflight_patterns_cached(config_path, mtime_ns)
 
 
 def _preflight_block(

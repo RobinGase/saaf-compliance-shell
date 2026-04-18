@@ -28,7 +28,17 @@ logger = logging.getLogger("privacy_router")
 
 
 def _log_route_decision(target: str, model: str, latency_ms: float) -> None:
-    """Append a route_decision event to the hash-chained audit log."""
+    """Append a route_decision event to the hash-chained audit log.
+
+    A caller-visible failure here would mask a successful downstream
+    request as an error, but a silent swallow is worse: the audit
+    trail is a compliance artefact, so any write failure must be
+    loud in operator logs. We catch broadly (OSError *and* any
+    corruption-surface error raised inside ``append_chained_event``
+    such as JSON serialisation, hash-chain invariants, or the file
+    lock layer) and ``logger.error`` with ``exc_info=True`` so the
+    traceback reaches operator monitoring.
+    """
     try:
         append_chained_event(
             AUDIT_LOG_PATH,
@@ -37,8 +47,13 @@ def _log_route_decision(target: str, model: str, latency_ms: float) -> None:
             model=model,
             latency_ms=round(latency_ms, 2),
         )
-    except OSError:
-        logger.warning("Could not write route decision to audit log")
+    except Exception:
+        logger.error(
+            "Failed to write route_decision audit event (target=%s model=%s)",
+            target,
+            model,
+            exc_info=True,
+        )
 
 
 def _model_from_body(body: bytes) -> str:
