@@ -522,9 +522,13 @@ def test_salvage_bypass_with_clean_content_logs_scan_only(monkeypatch, tmp_path:
     assert resp.status_code == 200
     assert resp.json()["choices"][0]["message"]["content"] == "OK"
     events = _read_audit(audit_log)
-    assert [e["event_type"] for e in events] == ["guardrails_bypass_scan"]
-    assert events[0]["source"] == "salvage_bypass"
-    assert events[0]["fired"] is False
+    assert [e["event_type"] for e in events] == [
+        "guardrails_salvage_attempt",
+        "guardrails_bypass_scan",
+    ]
+    assert events[0]["salvaged"] is True
+    assert events[1]["source"] == "salvage_bypass"
+    assert events[1]["fired"] is False
 
 
 def test_empty_rails_bypass_with_rail_firing_proxy_refuses(monkeypatch, tmp_path: Path) -> None:

@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import tempfile
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -89,6 +90,24 @@ DEFAULT_OFF_TOPIC_PATTERNS: tuple[str, ...] = (
 MAX_GUARDRAILS_PAYLOAD_CHARS = 12000
 
 
+# Process-wide lock around the CWD-chdir in
+# ``_neutral_cwd_for_colang_imports``. ``os.chdir`` mutates a
+# process-global; any concurrent thread that reads or resolves a
+# relative path during the chdir window sees the temp directory. The
+# real window is narrow — the wrapper is only reached on cold
+# ``_build_rails`` cache misses, and ``functools.lru_cache``
+# internally serializes concurrent first-call lookups — but we hold
+# an explicit lock anyway so the behaviour is safe even if an
+# operator runs the service with ``uvicorn --workers >1`` or reuses
+# the helper from a threaded context.
+#
+# The long-term fix is to rename the config directory from
+# ``guardrails/`` to ``guardrails_config/`` so Colang's CWD-first
+# import resolver stops shadowing the nemoguardrails library;
+# tracked in docs/REVIEW_2026-04-18.md under C5 for v0.9.
+_CWD_CHDIR_LOCK = threading.Lock()
+
+
 @contextmanager
 def _neutral_cwd_for_colang_imports() -> Iterator[None]:
     """Shadow-proof CWD for Colang's import resolver.
@@ -104,13 +123,18 @@ def _neutral_cwd_for_colang_imports() -> Iterator[None]:
 
     Chdir to a directory guaranteed not to contain a ``guardrails``
     subdirectory for the duration of config parsing, then restore.
+
+    The chdir is guarded by ``_CWD_CHDIR_LOCK`` so concurrent
+    builders cannot step on each other's CWD. See the lock's
+    comment for the thread-safety model.
     """
-    old = os.getcwd()
-    try:
-        os.chdir(tempfile.gettempdir())
-        yield
-    finally:
-        os.chdir(old)
+    with _CWD_CHDIR_LOCK:
+        old = os.getcwd()
+        try:
+            os.chdir(tempfile.gettempdir())
+            yield
+        finally:
+            os.chdir(old)
 
 
 @lru_cache(maxsize=8)
@@ -189,7 +213,19 @@ def create_app(config_path: str | Path) -> FastAPI:
             result = await rails.generate_async(messages=[message.model_dump() for message in body.messages])
             elapsed = int((time.time() - start) * 1000)
         except Exception as exc:
+            # nemoguardrails owns the "Invalid LLM response:" error
+            # format we fish content out of. Emit an audit event for
+            # every attempt — success or failure — naming the
+            # exception class, so a nemoguardrails format change
+            # shows up in the audit log before it shows up as a prod
+            # symptom. See C7 in docs/REVIEW_2026-04-18.md.
             salvaged = _recover_quoted_llm_value(str(exc))
+            _emit_audit(
+                "guardrails_salvage_attempt",
+                exception_class=type(exc).__name__,
+                salvaged=salvaged is not None,
+                model=body.model,
+            )
             if salvaged is None:
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
             result = {"role": "assistant", "content": salvaged}
