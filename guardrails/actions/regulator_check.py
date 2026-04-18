@@ -11,7 +11,7 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.regulator_rule import regulator_report
 
-from ._audit_emit import emit_rail_fire
+from modules.guardrails.audit_emit import emit_rail_fire
 
 
 @action(name="RegulatorCheckAction", execute_async=True)

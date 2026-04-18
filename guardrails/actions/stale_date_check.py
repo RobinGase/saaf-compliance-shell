@@ -11,7 +11,7 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.stale_date_rule import stale_date_report
 
-from ._audit_emit import emit_rail_fire
+from modules.guardrails.audit_emit import emit_rail_fire
 
 
 @action(name="StaleDateCheckAction", execute_async=True)

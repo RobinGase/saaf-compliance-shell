@@ -11,7 +11,7 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.verdict_rule import verdict_report
 
-from ._audit_emit import emit_rail_fire
+from modules.guardrails.audit_emit import emit_rail_fire
 
 
 @action(name="VerdictCheckAction", execute_async=True)

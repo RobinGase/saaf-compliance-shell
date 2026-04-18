@@ -11,7 +11,7 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.jurisdiction_rule import jurisdiction_report
 
-from ._audit_emit import emit_rail_fire
+from modules.guardrails.audit_emit import emit_rail_fire
 
 
 @action(name="JurisdictionCheckAction", execute_async=True)

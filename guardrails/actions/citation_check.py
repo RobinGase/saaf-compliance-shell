@@ -11,7 +11,7 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.citation_rule import citation_report
 
-from ._audit_emit import emit_rail_fire
+from modules.guardrails.audit_emit import emit_rail_fire
 
 
 @action(name="CitationCheckAction", execute_async=True)

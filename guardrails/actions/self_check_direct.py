@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from ._audit_emit import emit_rail_fire
+from modules.guardrails.audit_emit import emit_rail_fire
 
 try:
     from nemoguardrails.actions import action

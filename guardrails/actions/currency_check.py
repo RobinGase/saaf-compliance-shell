@@ -11,7 +11,7 @@ from nemoguardrails.actions import action
 
 from modules.guardrails.currency_rule import currency_report
 
-from ._audit_emit import emit_rail_fire
+from modules.guardrails.audit_emit import emit_rail_fire
 
 
 @action(name="CurrencyCheckAction", execute_async=True)
