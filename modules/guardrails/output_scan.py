@@ -1,4 +1,4 @@
-"""Run the eleven pure-Python output rails against a block of assistant text.
+"""Run the twelve pure-Python output rails against a block of assistant text.
 
 The nemoguardrails pipeline normally invokes each rule through a Colang
 flow + `@action` wrapper. When the service falls back to the main model
@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .absolutism_rule import absolutism_report
+from .case_law_rule import case_law_report
 from .citation_rule import citation_report
 from .cot_leakage_rule import cot_report
 from .currency_rule import currency_report
@@ -52,6 +53,7 @@ _RAILS = (
     ("fabricated_cve", cve_report, "has_fabricated_cve"),
     ("fabricated_regulator", regulator_report, "has_fabricated_regulator"),
     ("fabricated_deadline", deadline_report, "has_fabricated_deadline"),
+    ("fabricated_case_law", case_law_report, "has_fabricated_case_law"),
 )
 
 

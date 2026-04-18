@@ -36,6 +36,7 @@ def test_rails_tuple_covers_every_rule_module() -> None:
         "fabricated_cve",
         "fabricated_regulator",
         "fabricated_deadline",
+        "fabricated_case_law",
     }
     actual = {name for name, _fn, _flag in _RAILS}
     assert actual == expected, (
