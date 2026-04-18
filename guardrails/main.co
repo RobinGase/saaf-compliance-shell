@@ -1,6 +1,7 @@
 import core
 import llm
 import passthrough
+import guardrails
 
 flow main
   activate llm continuation

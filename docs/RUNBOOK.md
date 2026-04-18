@@ -132,3 +132,7 @@ The shell doesn't prescribe a monitoring stack, but these are the signals a remo
 - `systemctl is-active saaf-guardrails saaf-router` → services up.
 
 If any of these go red, the correct reflex is usually to stop new sessions and investigate — not to restart the service until you understand why it went down.
+
+## Relocating the audit log
+
+The default audit path is `/var/log/openshell/audit.jsonl`. For deployments where that location is not writable (developer workstations, ephemeral test hosts, containers without the systemd tmpfiles seed), set `AUDIT_LOG_PATH` in the service environment (`/etc/saaf-shell/services.env` or the unit's `Environment=`). All three writers — `modules.guardrails.audit_emit`, `modules.guardrails.service`, and `modules.router.privacy_router` — read the variable at startup, so a single entry keeps the guardrails service, router, and rail wrappers pointing at the same chain. The path must still be owned by the `saaf` user with mode `0640`; retention pruning and `verify-log` read the same variable.

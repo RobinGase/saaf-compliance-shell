@@ -129,9 +129,9 @@ flow mask pii in model output
   pass
 
 flow check topical relevance $input_text
-  """Block prompts that are not related to audit operations."""
-  $result = execute topic_safety_check_input(context="financial audit, compliance review, risk assessment, vendor evaluation, regulatory analysis, document review")
-
-  if not $result
-    bot refuse "This request is outside the scope of audit operations."
-    abort
+  """Stub under Colang 2.x. Off-topic prompts are rejected by the
+  preflight in ``modules/guardrails/service.py`` (OFF_TOPIC_PATTERNS)
+  before rails run. The prior 1.x ``execute topic_safety_check_input``
+  call never dispatched to a registered action and errored under the
+  2.x parser; a proper 2.x ``@action`` port is tracked for v0.9."""
+  pass

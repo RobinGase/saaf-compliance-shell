@@ -5,10 +5,12 @@ from __future__ import annotations
 import logging
 import os
 import re
+import tempfile
 import time
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import httpx
 import yaml
@@ -61,6 +63,30 @@ OFF_TOPIC_PATTERNS = (
 MAX_GUARDRAILS_PAYLOAD_CHARS = 12000
 
 
+@contextmanager
+def _neutral_cwd_for_colang_imports() -> Iterator[None]:
+    """Shadow-proof CWD for Colang's import resolver.
+
+    ``nemoguardrails/rails/llm/config.py`` resolves ``import X`` by
+    checking ``os.path.exists(X)`` against CWD *before* consulting
+    COLANGPATH. Our config directory is named ``guardrails``, so a
+    service started from the repo root causes ``import guardrails`` in
+    ``main.co`` to re-resolve to our own config dir instead of the
+    nemoguardrails library — reloading ``main.co`` a second time and
+    triggering a ``Multiple non-overriding flows with name 'main'``
+    collision at LLMRails construction.
+
+    Chdir to a directory guaranteed not to contain a ``guardrails``
+    subdirectory for the duration of config parsing, then restore.
+    """
+    old = os.getcwd()
+    try:
+        os.chdir(tempfile.gettempdir())
+        yield
+    finally:
+        os.chdir(old)
+
+
 @lru_cache(maxsize=8)
 def _build_rails(config_path: str, model_name: str | None, self_check_url: str):
     """Construct an ``LLMRails`` for a given config + self-check URL.
@@ -72,16 +98,17 @@ def _build_rails(config_path: str, model_name: str | None, self_check_url: str):
     """
     os.environ.setdefault("OPENAI_API_KEY", "not-used")
 
-    cfg = RailsConfig.from_path(config_path)
-    if self_check_url:
-        updated_models = []
-        for model in cfg.models:
-            if model.type == "self_check":
-                model.parameters = {**model.parameters, "base_url": self_check_url}
-            updated_models.append(model)
-        cfg = cfg.model_copy(update={"models": updated_models})
+    with _neutral_cwd_for_colang_imports():
+        cfg = RailsConfig.from_path(config_path)
+        if self_check_url:
+            updated_models = []
+            for model in cfg.models:
+                if model.type == "self_check":
+                    model.parameters = {**model.parameters, "base_url": self_check_url}
+                updated_models.append(model)
+            cfg = cfg.model_copy(update={"models": updated_models})
 
-    return LLMRails(cfg)
+        return LLMRails(cfg)
 
 
 def get_rails(config_path: str, model_name: str | None = None):
