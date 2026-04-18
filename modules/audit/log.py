@@ -4,6 +4,17 @@ Produces JSONL records where each event is chained to the previous via
 prev_hash / event_hash. A single-writer model with a monotonic sequence
 counter ensures no parallel hash chain ambiguity.
 
+Concurrency model:
+- ``AuditLog._lock`` (threading.Lock) serializes callers inside one
+  process before they reach the file lock.
+- ``fcntl.LOCK_EX`` inside ``append_chained_event`` serializes
+  out-of-process writers (the privacy router and the guardrails
+  service) against each other AND against any same-process thread
+  that bypasses ``AuditLog`` and calls ``append_chained_event``
+  directly. Do not remove the file lock on the assumption that the
+  threading lock covers intra-process races — the standalone
+  ``append_chained_event`` does not hold ``AuditLog._lock``.
+
 Usage:
     log = AuditLog("/var/log/openshell/audit.jsonl")
     log.start_session(session_id="abc", policy_hash="sha256:...", manifest_hash="sha256:...")
@@ -267,10 +278,14 @@ def verify_log(path: str | Path) -> tuple[bool, str]:
                     f"Expected prev_hash {prev_hash[:16]}..., found {record.get('prev_hash', 'missing')[:16]}...",
                 )
 
-            # Recompute event_hash from record contents
-            stored_hash = record.pop("event_hash", None)
-            expected_hash = _sha256(_canonical_json(record))
-            record["event_hash"] = stored_hash  # restore
+            # Recompute event_hash from record contents. Build a
+            # throwaway dict without event_hash rather than pop-then-restore:
+            # an exception in _canonical_json between pop and restore would
+            # leave the record un-restored, and downstream code would then
+            # see a record without its stored hash.
+            stored_hash = record.get("event_hash")
+            to_hash = {k: v for k, v in record.items() if k != "event_hash"}
+            expected_hash = _sha256(_canonical_json(to_hash))
 
             if stored_hash != expected_hash:
                 return (

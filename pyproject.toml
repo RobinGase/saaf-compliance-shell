@@ -1,6 +1,10 @@
 [project]
 name = "saaf-compliance-shell"
-version = "0.7.1"
+# Keep in lockstep with the git tag. `scripts/make-release-tarball.sh`
+# cross-checks this against `git describe --tags --abbrev=0` and refuses
+# to build on mismatch. TODO(v0.9): drive from setuptools_scm once the
+# release-tarball path is updated to carry a generated `_version.py`.
+version = "0.8.5"
 description = "Modular compliance wrapper for AI agent workloads"
 readme = "README.md"
 license = "Apache-2.0"

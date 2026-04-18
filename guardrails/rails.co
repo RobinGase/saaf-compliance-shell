@@ -130,8 +130,9 @@ flow mask pii in model output
 
 flow check topical relevance $input_text
   """Stub under Colang 2.x. Off-topic prompts are rejected by the
-  preflight in ``modules/guardrails/service.py`` (OFF_TOPIC_PATTERNS)
-  before rails run. The prior 1.x ``execute topic_safety_check_input``
-  call never dispatched to a registered action and errored under the
-  2.x parser; a proper 2.x ``@action`` port is tracked for v0.9."""
+  preflight in ``modules/guardrails/service.py`` (see
+  ``preflight_off_topic_patterns`` in ``config.yml``) before rails
+  run. The prior 1.x ``execute topic_safety_check_input`` call never
+  dispatched to a registered action and errored under the 2.x
+  parser; a proper 2.x ``@action`` port is tracked for v0.9."""
   pass

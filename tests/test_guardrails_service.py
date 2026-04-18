@@ -349,8 +349,54 @@ def test_preflight_block_writes_audit_event(monkeypatch, tmp_path: Path) -> None
     assert resp.status_code == 400
     events = _read_audit(audit_log)
     assert len(events) == 1
-    assert events[0]["event_type"] == "guardrails_preflight_block"
-    assert events[0]["model"] == "Randomblock1/nemotron-nano:8b"
+    event = events[0]
+    assert event["event_type"] == "guardrails_preflight_block"
+    assert event["model"] == "Randomblock1/nemotron-nano:8b"
+    assert event["category"] == "injection"
+    # The specific pattern that fired lands in the audit log so operators
+    # can see what the tripwire actually caught — not just that it caught
+    # something.
+    assert event["pattern"] == "ignore all previous instructions"
+
+
+def test_preflight_patterns_are_configurable_via_config_yml(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """An operator-edited config.yml must be able to add new preflight
+    patterns without a code change. Writes a custom config and verifies
+    a freshly-added pattern fires."""
+    config_dir = tmp_path / "guardrails"
+    config_dir.mkdir()
+    (config_dir / "config.yml").write_text(
+        "colang_version: \"2.x\"\n"
+        "preflight_injection_patterns:\n"
+        "  - \"custom operator phrase\"\n"
+        "preflight_off_topic_patterns:\n"
+        "  - \"custom off topic\"\n",
+        encoding="utf-8",
+    )
+    audit_log = tmp_path / "audit.jsonl"
+    monkeypatch.setenv("AUDIT_LOG_PATH", str(audit_log))
+
+    # Clear the patterns cache so this test's config is reloaded rather
+    # than a cached copy from an earlier test.
+    from modules.guardrails.service import _load_preflight_patterns
+    _load_preflight_patterns.cache_clear()
+
+    app = create_app(config_path=config_dir)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "Please handle this CUSTOM OPERATOR PHRASE now."}],
+        },
+    )
+    assert resp.status_code == 400
+    events = _read_audit(audit_log)
+    assert events[-1]["pattern"] == "custom operator phrase"
+    assert events[-1]["category"] == "injection"
 
 
 def test_oversized_bypass_with_clean_proxy_logs_scan_only(monkeypatch, tmp_path: Path) -> None:
