@@ -33,20 +33,54 @@ def test_build_vm_config_uses_manifest_resources(tmp_path: Path) -> None:
     assert config["machine-config"] == {"vcpu_count": 2, "mem_size_mib": 2048}
 
 
-def test_launch_firecracker_writes_console_log(tmp_path: Path, monkeypatch) -> None:
+def test_launch_firecracker_streams_console_to_disk(tmp_path: Path, monkeypatch) -> None:
+    """C4: Firecracker console is streamed directly to two files (stdout + stderr)
+    to keep host memory flat regardless of guest verbosity."""
     console_log = tmp_path / "guest.console.log"
 
     class FakeCompleted:
         returncode = 0
-        stdout = "guest stdout"
-        stderr = "guest stderr"
 
-    monkeypatch.setattr(
-        "modules.isolation.firecracker.subprocess.run",
-        lambda *args, **kwargs: FakeCompleted(),
-    )
+    def fake_run(cmd, *, stdout=None, stderr=None, check=False):
+        # Write through the real file handles the launcher opened,
+        # so the on-disk artefact reflects what a real guest would produce.
+        if hasattr(stdout, "write"):
+            stdout.write(b"guest stdout bytes")
+        if hasattr(stderr, "write"):
+            stderr.write(b"guest stderr bytes")
+        return FakeCompleted()
+
+    monkeypatch.setattr("modules.isolation.firecracker.subprocess.run", fake_run)
 
     rc = launch_firecracker({"boot-source": {}}, console_log_path=console_log)
 
     assert rc == 0
-    assert console_log.read_text(encoding="utf-8") == "STDOUT\nguest stdout\nSTDERR\nguest stderr\n"
+    assert console_log.read_bytes() == b"guest stdout bytes"
+    stderr_log = console_log.with_suffix(console_log.suffix + ".stderr")
+    assert stderr_log.read_bytes() == b"guest stderr bytes"
+
+
+def test_launch_firecracker_raises_on_nonzero_with_stderr_tail(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import subprocess as _sp
+
+    console_log = tmp_path / "guest.console.log"
+
+    class FakeCompleted:
+        returncode = 7
+
+    def fake_run(cmd, *, stdout=None, stderr=None, check=False):
+        if hasattr(stderr, "write"):
+            stderr.write(b"boot panic: no root device")
+        return FakeCompleted()
+
+    monkeypatch.setattr("modules.isolation.firecracker.subprocess.run", fake_run)
+
+    try:
+        launch_firecracker({"boot-source": {}}, console_log_path=console_log)
+    except _sp.CalledProcessError as exc:
+        assert exc.returncode == 7
+        assert "boot panic" in exc.stderr
+    else:
+        raise AssertionError("Expected CalledProcessError on non-zero return")

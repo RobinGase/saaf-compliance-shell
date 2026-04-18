@@ -52,25 +52,61 @@ def build_vm_config(
 
 
 def launch_firecracker(config: dict, binary: str = "firecracker", console_log_path: str | Path | None = None) -> int:
+    """Run the Firecracker binary and stream its console to disk.
+
+    C4: the previous implementation used ``subprocess.run(capture_output=True)``
+    which buffers the guest's entire ``stdout``/``stderr`` in memory.
+    A chatty VM (a failing boot loop, a noisy agent, or anything that
+    dumps a kernel oops) grows that buffer without bound and can OOM
+    the host. Stream directly to ``console_log_path`` instead, one
+    file for stdout and one for stderr — operators still get the full
+    console for post-mortem, and memory stays flat.
+
+    If ``console_log_path`` is ``None`` both streams go to
+    ``DEVNULL``. A non-zero exit raises ``CalledProcessError`` with
+    the captured stderr tail so callers see the failure reason
+    without having to grep the log file.
+    """
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8") as tmp:
         json.dump(config, tmp)
         config_path = tmp.name
 
+    cmd = [binary, "--no-api", "--config-file", config_path]
+
     try:
-        completed = subprocess.run(
-            [binary, "--no-api", "--config-file", config_path],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        if console_log_path is not None:
-            Path(console_log_path).write_text(
-                f"STDOUT\n{completed.stdout}\nSTDERR\n{completed.stderr}\n",
-                encoding="utf-8",
-            )
-        return completed.returncode
+        if console_log_path is None:
+            returncode = subprocess.run(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
+            ).returncode
+            if returncode != 0:
+                raise subprocess.CalledProcessError(returncode, cmd)
+            return returncode
+
+        console_path = Path(console_log_path)
+        console_path.parent.mkdir(parents=True, exist_ok=True)
+        stderr_path = console_path.with_suffix(console_path.suffix + ".stderr")
+        with open(console_path, "wb") as stdout_fh, open(stderr_path, "wb") as stderr_fh:
+            returncode = subprocess.run(
+                cmd, stdout=stdout_fh, stderr=stderr_fh, check=False
+            ).returncode
+        if returncode != 0:
+            stderr_tail = _tail_bytes(stderr_path, 2000)
+            raise subprocess.CalledProcessError(returncode, cmd, stderr=stderr_tail)
+        return returncode
     finally:
         Path(config_path).unlink(missing_ok=True)
+
+
+def _tail_bytes(path: Path, n: int) -> str:
+    """Return up to the last ``n`` bytes of ``path`` decoded as UTF-8 with replacement."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        return ""
+    with open(path, "rb") as fh:
+        if size > n:
+            fh.seek(-n, 2)
+        return fh.read().decode("utf-8", errors="replace")
 
 
 def _encode_boot_value(value: str) -> str:

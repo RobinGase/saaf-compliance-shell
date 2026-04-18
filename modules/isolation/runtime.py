@@ -77,19 +77,77 @@ def run_manifest(
     nfs_process = None
 
     try:
-        _run_commands(setup_commands)
+        _run_commands(setup_commands, audit=audit, phase="setup", session_id=session_id)
         nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port, db_path=db_path, workdir=Path(overlay_dir).parent)
         console_log_path = Path(overlay_dir).parent / f"{session_id}.console.log"
         launch_firecracker(config, console_log_path=console_log_path)
         audit.record("vm_exit", session_id=session_id, status="ok")
+    except Exception as exc:
+        # C2: an abnormal exit (setup failure, NFS launch failure,
+        # Firecracker crash) used to leave only a session_start +
+        # session_end pair in the audit log, with no record of why the
+        # VM never ran. Emit an explicit ``vm_exit`` with status=failed
+        # before re-raising so operators reading the log see the
+        # failure reason without cross-referencing stderr or container
+        # logs. Teardown in ``finally`` still runs.
+        audit.record(
+            "vm_exit",
+            session_id=session_id,
+            status="failed",
+            reason=str(exc),
+            exception_class=type(exc).__name__,
+        )
+        raise
     finally:
         stop_nfs_server(nfs_process)
-        _run_commands(teardown_commands, check=False)
+        _run_commands(
+            teardown_commands,
+            check=False,
+            audit=audit,
+            phase="teardown",
+            session_id=session_id,
+        )
         audit.end_session()
 
     return session_id
 
 
-def _run_commands(commands: list[list[str]], check: bool = True) -> None:
+def _run_commands(
+    commands: list[list[str]],
+    check: bool = True,
+    *,
+    audit: AuditLog | None = None,
+    phase: str = "unknown",
+    session_id: str = "",
+) -> None:
+    """Run network setup/teardown commands and emit audit context on failure.
+
+    C3: the previous implementation called ``subprocess.run(check=True)``
+    and let ``CalledProcessError`` propagate. Operators saw the
+    exception's ``__str__`` — return code plus the bare command —
+    never the captured ``stderr``. Here we inspect ``returncode``
+    explicitly so the audit log carries ``stderr`` and the command
+    that failed, then raise with the same context attached to the
+    exception message.
+
+    With ``check=False`` (teardown path) failures are still audited —
+    they just don't raise, so cleanup continues.
+    """
     for cmd in commands:
-        subprocess.run(cmd, check=check, capture_output=True, text=True)
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        if proc.returncode == 0:
+            continue
+        if audit is not None:
+            audit.record(
+                "command_failed",
+                session_id=session_id,
+                phase=phase,
+                command=cmd,
+                returncode=proc.returncode,
+                stderr=proc.stderr.strip(),
+                stdout_tail=proc.stdout[-500:] if proc.stdout else "",
+            )
+        if check:
+            raise subprocess.CalledProcessError(
+                proc.returncode, cmd, output=proc.stdout, stderr=proc.stderr
+            )
