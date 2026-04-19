@@ -44,6 +44,43 @@ def _canonical_json(obj: dict) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
+def _iter_lines_reverse(path: Path, chunk_size: int = 8192):
+    """Yield lines from ``path`` in reverse order without loading the whole file.
+
+    The audit log is append-only JSONL, so reading backward lets
+    ``_count_session_events`` stop as soon as it finds its
+    ``session_start`` — cost proportional to the session, not the
+    whole retention window. Yields text lines stripped of trailing
+    newline; does not yield an empty trailing line if the file ends
+    with a newline (the common case).
+
+    Reads in fixed-size chunks from EOF toward BOF, carrying a
+    ``leftover`` buffer for the line that straddles a chunk
+    boundary. Binary-mode reads + UTF-8 decode with ``replace``
+    keeps a corrupted tail from blowing up the whole scan.
+    """
+    with open(path, "rb") as fh:
+        fh.seek(0, 2)
+        pos = fh.tell()
+        leftover = b""
+        while pos > 0:
+            read_size = min(chunk_size, pos)
+            pos -= read_size
+            fh.seek(pos)
+            chunk = fh.read(read_size) + leftover
+            lines = chunk.split(b"\n")
+            # The first element may be an incomplete line whose start
+            # lies in the next (earlier) chunk — hold it as leftover.
+            leftover = lines[0]
+            # Yield the rest in reverse; the last element is the
+            # trailing line (or empty if the chunk ended on \n).
+            for line in reversed(lines[1:]):
+                if line:
+                    yield line.decode("utf-8", errors="replace")
+        if leftover:
+            yield leftover.decode("utf-8", errors="replace")
+
+
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -106,29 +143,41 @@ class AuditLog:
     def _count_session_events(self, session_id: str | None) -> int:
         """Return the number of events whose ``session_id`` matches this session.
 
-        Every record written via ``append_chained_event`` carries the active
-        session_id (propagated from the tail in ``_read_chain_tail``), so
-        filtering by ``session_id`` correctly counts events from every
-        writer — the ``AuditLog`` instance itself, the privacy router, and
-        the guardrails service — without double-counting when a second
-        session interleaves on the same log. Ignores lines that don't parse;
-        those are crash-truncated tails that ``append_chained_event`` heals
-        on the next write.
+        H6: scans the log *backward* from EOF, stopping at the
+        ``session_start`` record for this session. That keeps the
+        per-close cost proportional to the number of records *in
+        this session*, not the whole retention window. A forward
+        scan was fine at v0 retention but becomes a real hotspot at
+        the 7-year retention the audit section targets.
+
+        Every record written via ``append_chained_event`` carries
+        the active session_id (propagated from the tail in
+        ``_read_chain_tail``), so filtering by ``session_id``
+        correctly counts events from every writer — the
+        ``AuditLog`` instance itself, the privacy router, and the
+        guardrails service — without double-counting when a second
+        session interleaves on the same log. Lines that don't parse
+        (crash-truncated tails that ``append_chained_event`` heals
+        on the next write) are skipped.
         """
         if session_id is None or not self._path.exists():
             return 0
         count = 0
-        with self._path.open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if record.get("session_id") == session_id:
-                    count += 1
+        for line in _iter_lines_reverse(self._path):
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("session_id") != session_id:
+                # A different session's record (or an unattributed
+                # preamble) interleaved in the log — skip, keep scanning
+                # backward. We only stop at *this* session's start.
+                continue
+            count += 1
+            if record.get("event_type") == "session_start":
+                break
         return count
 
     def _write_event(self, **fields) -> dict:

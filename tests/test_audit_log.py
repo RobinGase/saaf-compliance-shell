@@ -69,6 +69,28 @@ class TestAuditLog:
         assert end_a["event_count"] == 3  # start + vm_exit + end for sess-a
         assert end_b["event_count"] == 3  # start + vm_exit + end for sess-b
 
+    def test_session_end_count_with_large_prior_history(self, tmp_log):
+        """H6: session_end must count only this session's events, even when
+        the audit log already carries a large volume of records from earlier
+        sessions. This is the scaling regression — prior implementation was
+        O(whole log) on every close."""
+        # Seed ~500 events across prior sessions.
+        for i in range(5):
+            prior = AuditLog(tmp_log)
+            prior.start_session(session_id=f"prior-{i}", policy_hash="x", manifest_hash="y")
+            for _ in range(98):
+                prior.record("noise", kind="filler")
+            prior.end_session()
+
+        # This session is tiny.
+        current = AuditLog(tmp_log)
+        current.start_session(session_id="current", policy_hash="x", manifest_hash="y")
+        current.record("vm_exit", exit_code=0)
+        end = current.end_session()
+
+        # start + vm_exit + end = 3
+        assert end["event_count"] == 3
+
     def test_file_written_as_jsonl(self, tmp_log):
         log = AuditLog(tmp_log)
         log.start_session(session_id="test-001", policy_hash="a", manifest_hash="b")
