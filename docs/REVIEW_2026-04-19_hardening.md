@@ -378,9 +378,118 @@ queued for S7–S10 (see §Re-plan below).
   topical action port).
 - **S11** — SBOM + cosign keyless signing (was original S6).
 
-## S7 — audit integrity (RT-02 + RT-03)
+## S7 — audit integrity (RT-02 + RT-03)  (v0.9.0-s7)
 
-Pending.
+Landed on `main` (pending tag `v0.9.0-s7`).
+
+Closes the two highest-severity findings from the external GPT-5.4
+red-team review — both were tail-manipulation attacks that stayed
+green under `verify_log` because the log was self-describing: without
+an external anchor, `verify_log` had no reference for "where should
+this chain end."
+
+- **RT-02 — rollback/suffix deletion.** Attacker with write access
+  deletes the last N records. The remaining prefix is still
+  internally consistent (each record's `prev_hash` matches the
+  previous record's `event_hash`), so `verify_log` reported the
+  shortened chain as intact. Incident evidence (a final
+  `route_decision`, a `guardrails_rail_fire`, a `session_end`) could
+  be erased silently.
+- **RT-03 — crash-heal tamper-erasure.** `_read_chain_tail` marked
+  malformed tails for truncation; `append_chained_event` truncated
+  before writing the next event. A one-byte corruption of the last
+  record (flip the trailing `\n`, corrupt a JSON byte) + the next
+  legitimate append = silent deletion of the tampered record. The
+  chain remained valid on the shortened remainder.
+
+**Fix — head-pointer sidecar + discriminating heal.**
+
+- **Sidecar file** `<log>.head` alongside the log, updated atomically
+  under the existing `fcntl.LOCK_EX` window via `os.replace`. Content
+  is JSON: `{last_seq, last_event_hash, event_count, ts}`. Design
+  choices:
+  - Written on *every* successful append — no batching, no
+    throughput tradeoff worth catching tamper-via-process-kill
+    between log append and sidecar update.
+  - Atomic rename via `os.replace` (atomic on both POSIX and
+    Windows) so a reader never sees a half-written sidecar.
+  - Not cryptographically signed — that is deferred. Attacker with
+    write to the log usually has write to the sidecar too. The
+    sidecar's value is (a) catching accidental truncation, (b)
+    raising attack cost (attacker must know to update it), (c)
+    giving operators a single small file to mirror externally
+    (journald, remote log, WORM) for a real anchor.
+- **`verify_log` extended.** Reads the sidecar and returns:
+  - `(True, "Verified N events. Chain intact. Head pointer matches.")`
+    when tail matches sidecar — strong result.
+  - `(True, "... WARNING: no head-pointer sidecar present ...")`
+    when sidecar absent — weak result, back-compat with pre-S7
+    logs, flags the missing anchor.
+  - `(False, "TAMPER DETECTED: head pointer last_event_hash=... but
+    log tail shows ...")` on any mismatch of `last_event_hash`,
+    `last_seq`, or `event_count`.
+- **Discriminating heal in `append_chained_event`.** New
+  `_classify_tail` returns one of `clean | first_write | legacy |
+  heal_legit | tamper`:
+  - `clean` — sidecar matches tail, no heal needed, proceed.
+  - `first_write` — log empty and no sidecar, initialise both.
+  - `legacy` — log has records but no sidecar (pre-S7 upgrade
+    path), trust-on-first-write; next successful append
+    initialises the sidecar.
+  - `heal_legit` — truncate_at is set AND the last intact record
+    above the truncation matches the sidecar's `last_event_hash`.
+    The malformed bytes were either a partial write from a crash
+    or a tamper-append of unrecoverable bytes — in both cases the
+    committed record is intact. Truncate, emit a chained
+    `audit_tail_healed` record (so the heal is itself auditable),
+    then write the primary event.
+  - `tamper` — sidecar and tail disagree. Raise
+    `AuditTamperDetected` unless `SAAF_ACK_AUDIT_HEAL=1` is set;
+    the ack path emits `audit_tail_heal_acknowledged` before the
+    primary write so the override is audited.
+- **`AuditTamperDetected`** is a new `RuntimeError` subclass so
+  callers can distinguish "audit broke" from generic OSError in
+  their recovery paths.
+- **`_build_and_write_record`** extracted from the old append path.
+  Both the primary event and the heal/ack marker events go through
+  the same hashing + write path so they're indistinguishable to
+  `verify_log`.
+
+**Deliverables:**
+
+- `modules/audit/log.py`:
+  - New: `HEAD_POINTER_SUFFIX`, `HEAL_ACK_ENV`,
+    `AuditTamperDetected`, `_head_pointer_path`,
+    `_read_head_pointer`, `_write_head_pointer`, `_heal_ack_env`,
+    `_classify_tail`, `_build_and_write_record`.
+  - Modified: `_read_chain_tail` now also returns `record_count`.
+    `append_chained_event` refactored around
+    `_build_and_write_record` with the classification switch.
+    `verify_log` cross-checks the sidecar.
+- `tests/test_audit_log.py`: new `TestHeadPointerAndTamper` class
+  with 9 tests — sidecar-written-on-every-append, verify-matches-
+  strong, detect-trailing-rollback, detect-last-record-rollback,
+  verify-without-sidecar-warns, append-refuses-on-tampered-tail,
+  ack-env-allows-override-and-audits-it, legacy-log-initialises-
+  on-next-append, legacy-log-with-partial-tail-refuses-without-ack.
+  Plus the two pre-existing crash-heal tests updated to verify the
+  new chained `audit_tail_healed` record.
+- `docs/SECURITY.md` §6 rewritten to document the sidecar, the
+  discriminating heal, the ack env var, and the sidecar-caveats
+  paragraph (what it buys, what it doesn't).
+
+**Evidence:**
+
+- 640 pass (+9 from S6's 631), 36 skipped. Ruff + mypy clean on
+  `modules/audit/log.py` and the test file.
+- Two pre-existing tests updated in place (same semantics, stronger
+  assertions — the silent-truncate behaviour they were pinning is
+  exactly the RT-03 attack surface).
+- Old behaviour preserved for pre-S7 logs via the `legacy`
+  classification branch; first append initialises the sidecar.
+- Out-of-scope (documented): cryptographic signing of the sidecar,
+  WORM/HSM storage, remote anchor service. Implementation plan
+  already excludes these as v0 scope.
 
 ## S8 — PII + history (RT-05 + RT-08)
 

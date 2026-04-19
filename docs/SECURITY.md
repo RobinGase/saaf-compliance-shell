@@ -42,9 +42,11 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 ### 6. Audit log tampering
 
-**Defence:** Every event is SHA-256 chained: each record embeds the previous record's hash, and the record itself is hashed over canonical JSON. `saaf-shell verify-log` walks the chain and reports the first broken link by sequence number.
+**Defence:** Every event is SHA-256 chained: each record embeds the previous record's hash, and the record itself is hashed over canonical JSON. A head-pointer sidecar (`<log>.head`) is updated atomically alongside every successful append under the same file lock and carries `{last_seq, last_event_hash, event_count, ts}`. `saaf-shell verify-log` walks the chain, cross-checks the tail against the sidecar, and reports tamper when they disagree.
 
-**Result:** Editing an event changes its hash, which breaks the next record's `prev_hash`. Truncation is reported as such. Multi-session logs are supported — a `session_start` record resets the chain.
+**Result:** Editing an event changes its hash, which breaks the next record's `prev_hash`. Rollback of trailing events (pruning the last N records so the prefix still hash-validates) is caught by the sidecar mismatch. A crash-truncated tail is healed only when the last intact record matches the sidecar; the heal itself writes a chained `audit_tail_healed` event so the healed bytes aren't silently lost. When the intact prefix doesn't match the sidecar, the append refuses with `AuditTamperDetected`; operators who know the divergence is legitimate (backup restore, log rotation) set `SAAF_ACK_AUDIT_HEAL=1` — that path emits `audit_tail_heal_acknowledged` into the chain so the override is itself audited. Multi-session logs are supported — a `session_start` record resets the chain.
+
+**Sidecar caveats:** the sidecar lives alongside the log by default, so an attacker with write to the log usually has write to the sidecar. Its value is (a) catching accidental truncation, (b) raising attack cost (the attacker must know to update it), and (c) being a single small file operators can mirror externally (journald, remote log, WORM object storage) for a real external anchor. Cryptographic signing of the sidecar is deferred — see the Out-of-scope table.
 
 ### 7. Resource exhaustion
 

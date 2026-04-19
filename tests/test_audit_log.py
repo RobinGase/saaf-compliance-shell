@@ -7,7 +7,10 @@ import pytest
 
 from modules.audit.log import (
     GENESIS_PREV_HASH,
+    HEAL_ACK_ENV,
     AuditLog,
+    AuditTamperDetected,
+    _head_pointer_path,
     append_chained_event,
     verify_log,
 )
@@ -234,11 +237,15 @@ class TestAppendChainedEvent:
         assert "event_hash" in rec
 
     def test_heals_partial_json_tail_from_crash(self, tmp_log):
-        """A crash-truncated trailing line must be discarded before the next append.
+        """S7: a crash-truncated trailing line is discarded and the heal
+        is itself chained into the log as ``audit_tail_healed``.
 
-        Otherwise the new event is concatenated onto the partial record and
-        every subsequent verify_log stays broken. The fix keeps the chain
-        linked from the last intact event.
+        Pre-S7 behaviour was to silently truncate. That path let an
+        attacker who corrupted the last record erase it by triggering
+        any subsequent append (RT-03). The S7 path only classifies the
+        heal as legitimate when the last intact record matches the head
+        pointer, and emits an audited heal record so the event is never
+        lost silently.
         """
         log = AuditLog(tmp_log)
         log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
@@ -251,18 +258,26 @@ class TestAppendChainedEvent:
             tmp_log, "route_decision", target="local_nim", model="m"
         )
 
-        assert appended["prev_hash"] == last_good["event_hash"]
-        assert appended["seq"] == last_good["seq"] + 1
+        # Chain: last_good → audit_tail_healed → route_decision.
+        # The appended event's prev_hash is NOT last_good's event_hash
+        # any more; it is the heal record's event_hash, keeping the
+        # heal itself auditable.
+        assert appended["seq"] == last_good["seq"] + 2
+        assert appended["prev_hash"] != last_good["event_hash"]
+
+        with open(tmp_log, encoding="utf-8") as f:
+            records = [json.loads(line) for line in f if line.strip()]
+        heal = next(r for r in records if r["event_type"] == "audit_tail_healed")
+        assert heal["prev_hash"] == last_good["event_hash"]
+        assert heal["seq"] == last_good["seq"] + 1
+        assert appended["prev_hash"] == heal["event_hash"]
 
         valid, message = verify_log(tmp_log)
         assert valid is True, message
 
     def test_heals_missing_trailing_newline(self, tmp_log):
-        """A record without a terminating newline is treated as partial.
-
-        Parseable JSON on its own line but without `\\n` still signals
-        "write may not have been flushed." Safer to discard it than to
-        let the next append concatenate onto it and break the chain.
+        """S7: a record without a terminating newline triggers the same
+        audited heal path as a malformed JSON tail.
         """
         log = AuditLog(tmp_log)
         log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
@@ -275,8 +290,13 @@ class TestAppendChainedEvent:
             tmp_log, "route_decision", target="local_nim", model="m"
         )
 
-        assert appended["prev_hash"] == last_good["event_hash"]
-        assert appended["seq"] == last_good["seq"] + 1
+        assert appended["seq"] == last_good["seq"] + 2
+
+        with open(tmp_log, encoding="utf-8") as f:
+            records = [json.loads(line) for line in f if line.strip()]
+        heal = next(r for r in records if r["event_type"] == "audit_tail_healed")
+        assert heal["prev_hash"] == last_good["event_hash"]
+        assert appended["prev_hash"] == heal["event_hash"]
 
         valid, message = verify_log(tmp_log)
         assert valid is True, message
@@ -342,3 +362,199 @@ class TestAppendChainedEvent:
 
         valid, message = verify_log(tmp_log)
         assert valid is True, message
+
+
+class TestHeadPointerAndTamper:
+    """S7 — head-pointer sidecar + discriminating heal.
+
+    RT-02 closure: detect rollback of trailing records even though the
+    remaining prefix still hash-validates.
+    RT-03 closure: distinguish legit crash-heal from tamper-erasure, and
+    make the heal itself chained evidence instead of a silent truncate.
+    """
+
+    def test_head_pointer_written_on_every_append(self, tmp_log):
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/x.txt")
+        end = log.end_session()
+
+        hp_path = _head_pointer_path(tmp_log)
+        assert hp_path.exists()
+        head = json.loads(hp_path.read_text(encoding="utf-8"))
+        assert head["last_event_hash"] == end["event_hash"]
+        assert head["last_seq"] == end["seq"]
+        assert head["event_count"] == 3  # start + record + end
+
+    def test_verify_with_matching_head_reports_strong(self, tmp_log):
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/x.txt")
+        log.end_session()
+
+        valid, message = verify_log(tmp_log)
+        assert valid is True
+        assert "Head pointer matches" in message
+
+    def test_verify_detects_trailing_record_rollback(self, tmp_log):
+        """RT-02: truncate the last two records — chain still valid on
+        the prefix, but the head pointer disagrees with the new tail."""
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/a.txt")
+        log.record("file_create", path="/audit_workspace/b.txt")
+        end = log.end_session()
+
+        # Snapshot head pointer (attacker doesn't know to edit it).
+        hp_path = _head_pointer_path(tmp_log)
+        head_before = json.loads(hp_path.read_text(encoding="utf-8"))
+        assert head_before["last_event_hash"] == end["event_hash"]
+
+        # Attacker deletes the last two records: the file_create at seq=2
+        # and the session_end at seq=3. The remaining chain (genesis +
+        # seq=1) is still internally consistent.
+        with open(tmp_log, encoding="utf-8") as f:
+            lines = [line for line in f if line.strip()]
+        with open(tmp_log, "w", encoding="utf-8") as f:
+            f.writelines(lines[:2])
+
+        valid, message = verify_log(tmp_log)
+        assert valid is False
+        assert "TAMPER DETECTED" in message
+
+    def test_verify_detects_last_record_rollback(self, tmp_log):
+        """Deleting only the final record must also be caught."""
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/a.txt")
+        log.end_session()
+
+        with open(tmp_log, encoding="utf-8") as f:
+            lines = [line for line in f if line.strip()]
+        with open(tmp_log, "w", encoding="utf-8") as f:
+            f.writelines(lines[:-1])
+
+        valid, message = verify_log(tmp_log)
+        assert valid is False
+        assert "TAMPER DETECTED" in message
+
+    def test_verify_without_head_pointer_warns_but_passes(self, tmp_log):
+        """A log without a sidecar (pre-S7 or deleted) verifies but flags
+        the missing anchor — operators can still manually cross-check."""
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/x.txt")
+        log.end_session()
+
+        _head_pointer_path(tmp_log).unlink()
+
+        valid, message = verify_log(tmp_log)
+        assert valid is True
+        assert "WARNING" in message
+        assert "no head-pointer sidecar" in message
+
+    def test_append_refuses_on_tampered_tail(self, tmp_log, monkeypatch):
+        """RT-03: an attacker corrupts the last record (a valid-looking
+        record gets its final byte garbled) and then a legit writer
+        fires. Without the head pointer the old code would have
+        truncated the tampered record silently. With S7 the head
+        pointer's last_event_hash doesn't match the intact prefix's
+        last hash, so the append refuses."""
+        monkeypatch.delenv(HEAL_ACK_ENV, raising=False)
+
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/a.txt")
+        log.record("file_create", path="/audit_workspace/b.txt")
+
+        # Corrupt the final record's trailing newline → now
+        # _read_chain_tail sees truncate_at pointing at it, with the
+        # last intact record being the *second-to-last* line. Head
+        # still says the last record is the final one.
+        raw = tmp_log.read_bytes()
+        # Strip the last newline so the final line is "unterminated".
+        assert raw.endswith(b"\n")
+        tmp_log.write_bytes(raw[:-1] + b"X")
+
+        with pytest.raises(AuditTamperDetected) as exc:
+            append_chained_event(
+                tmp_log, "route_decision", target="t", model="m"
+            )
+        assert "head pointer" in str(exc.value).lower()
+
+    def test_heal_ack_env_allows_override_and_audits_override(
+        self, tmp_log, monkeypatch
+    ):
+        """Operator explicitly acks a divergence (e.g. restored from
+        backup). The override path emits an
+        ``audit_tail_heal_acknowledged`` record into the chain so the
+        override itself is auditable."""
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/a.txt")
+        log.record("file_create", path="/audit_workspace/b.txt")
+
+        raw = tmp_log.read_bytes()
+        tmp_log.write_bytes(raw[:-1] + b"X")
+
+        monkeypatch.setenv(HEAL_ACK_ENV, "1")
+        appended = append_chained_event(
+            tmp_log, "route_decision", target="t", model="m"
+        )
+
+        with open(tmp_log, encoding="utf-8") as f:
+            records = [json.loads(line) for line in f if line.strip()]
+        event_types = [r["event_type"] for r in records]
+        assert "audit_tail_heal_acknowledged" in event_types
+        # The route_decision is the last event and verification passes.
+        assert records[-1] == appended
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message
+
+    def test_legacy_log_without_head_pointer_initialises_on_next_append(
+        self, tmp_log
+    ):
+        """A log written by a pre-S7 build has no sidecar. The first S7
+        append must not refuse; it initialises the sidecar and emits
+        normally."""
+        # Simulate a pre-S7 log by writing records, then deleting the
+        # sidecar.
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/x.txt")
+        _head_pointer_path(tmp_log).unlink()
+
+        appended = append_chained_event(
+            tmp_log, "route_decision", target="t", model="m"
+        )
+        assert appended["event_type"] == "route_decision"
+
+        hp_path = _head_pointer_path(tmp_log)
+        assert hp_path.exists()
+        head = json.loads(hp_path.read_text(encoding="utf-8"))
+        assert head["last_event_hash"] == appended["event_hash"]
+
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message
+
+    def test_legacy_log_with_partial_tail_refuses_without_ack(
+        self, tmp_log, monkeypatch
+    ):
+        """A pre-S7 log that also has a partial tail is ambiguous — we
+        can't tell crash from tamper without an anchor. Refuse unless
+        ack. This is the conservative migration path."""
+        monkeypatch.delenv(HEAL_ACK_ENV, raising=False)
+
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s1", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/x.txt")
+        _head_pointer_path(tmp_log).unlink()
+
+        # Inject a partial tail.
+        with open(tmp_log, "a", encoding="utf-8") as f:
+            f.write('{"seq":99,"event_type":"partial')
+
+        with pytest.raises(AuditTamperDetected):
+            append_chained_event(
+                tmp_log, "route_decision", target="t", model="m"
+            )
