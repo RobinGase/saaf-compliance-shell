@@ -11,6 +11,21 @@ curated narrative. For full commit detail per release, run
 
 ## [Unreleased]
 
+### Security
+- **S1 — oversized-input safe refusal** (hardening wave batch 1, tag
+  `v0.9.0-s1`). `modules/guardrails/service.py` no longer proxies
+  oversized payloads to the main model with output-rescan as the only
+  check; a request exceeding `MAX_GUARDRAILS_PAYLOAD_CHARS` is refused
+  with HTTP 413 and `detail = "payload_too_large_refused"`, and an
+  `oversize_refused` event (`payload_chars`, `threshold_chars`,
+  `model`) lands in the hash-chained audit log. Output rail rescanning
+  remains on the salvage-from-error and empty-rails bypass paths where
+  it is the right tool; on the oversize path it was additional defence,
+  not substitute enforcement. Three defect-encoding tests were
+  rewritten: they asserted a 200 with proxied content on oversized
+  input, which was the bypass this change closes. See
+  `docs/REVIEW_2026-04-19_hardening.md` for the full batch log.
+
 ### Changed
 - CLI output now flows through the `logging` module (logger name
   `saaf_shell`) with a `-v` / `--verbose` flag for `DEBUG` level. A

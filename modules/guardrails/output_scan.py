@@ -2,9 +2,11 @@
 
 The nemoguardrails pipeline normally invokes each rule through a Colang
 flow + `@action` wrapper. When the service falls back to the main model
-directly (oversized payloads, empty rail output), that path has to run
+directly (salvage-from-error, empty rail output), that path has to run
 the same rules itself or the rails are effectively off. This module is
-the shared entry point for both cases.
+the shared entry point for both cases. (Oversized payloads used to flow
+here too, but as of S1/v0.9.0-s1 they are refused up front — size alone
+must not skip LLMRails.)
 
 Each rule module under ``modules/guardrails/*_rule.py`` exposes a
 ``*_report`` function that returns a dict with a ``has_*`` flag. We call

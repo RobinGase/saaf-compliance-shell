@@ -219,12 +219,25 @@ def create_app(config_path: str | Path) -> FastAPI:
             )
             raise HTTPException(status_code=400, detail=reason)
 
-        if _messages_text_size(body.messages) > MAX_GUARDRAILS_PAYLOAD_CHARS:
-            bot_message = _proxy_to_main_model(str(config_path), body)
-            bot_message = _apply_output_rails(
-                bot_message, source="oversized_bypass", model=body.model
+        payload_chars = _messages_text_size(body.messages)
+        if payload_chars > MAX_GUARDRAILS_PAYLOAD_CHARS:
+            # S1: size alone must not route around LLMRails. The prior
+            # behaviour proxied straight to the model and rescanned the
+            # response with the pure-Python rails; output rescan is
+            # additional defence, not a substitute for input-policy
+            # enforcement. An oversize request is refused with a 4xx
+            # and an explicit ``oversize_refused`` audit event so the
+            # operator sees the refusal in the chain.
+            _emit_audit(
+                "oversize_refused",
+                payload_chars=payload_chars,
+                threshold_chars=MAX_GUARDRAILS_PAYLOAD_CHARS,
+                model=body.model,
             )
-            return _build_chat_completion_response(body, bot_message, elapsed=0)
+            raise HTTPException(
+                status_code=413,
+                detail="payload_too_large_refused",
+            )
 
         salvaged_from_error = False
         try:
@@ -293,10 +306,14 @@ def _apply_output_rails(
 ) -> dict[str, str]:
     """Run the pure-Python output rails against a response that skipped the Colang pipeline.
 
-    Used on the three bypass paths (oversized payload, salvage-from-error,
-    empty-rails fallback) where the response otherwise reaches the client
-    without ever touching the eleven output rails. Every fire lands in the
-    audit chain; any fire replaces the response content with a canned refusal.
+    Used on two bypass paths (salvage-from-error, empty-rails fallback) where
+    the response otherwise reaches the client without ever touching the
+    output rails. Every fire lands in the audit chain; any fire replaces
+    the response content with a canned refusal.
+
+    As of S1 (v0.9.0-s1), the oversized-payload branch no longer routes
+    here — it's refused up front with a 4xx and an ``oversize_refused``
+    audit event. Size alone must not skip ``LLMRails``.
     """
     text = bot_message.get("content", "")
     firings: list[RailFiring] = scan_output(text)
