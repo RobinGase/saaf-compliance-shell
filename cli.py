@@ -10,19 +10,74 @@ Usage:
 """
 
 import argparse
+import logging
+import subprocess
 import sys
 from pathlib import Path
 
 from modules.audit.log import verify_log
 from modules.guardrails.red_team import run_red_team_suite
 from modules.guardrails.routing_check import run_guardrails_routing_validation
-from modules.isolation.agentfs import AgentFSClient
+from modules.isolation.agentfs import AgentFSClient, AgentFSError
+from modules.isolation.network import IpForwardEnabledError, NetworkPolicyError
 from modules.isolation.runtime import run_manifest
 from modules.isolation.smoke import run_vm_probe
 from modules.manifest.validator import validate_manifest
 
 DEFAULT_ROOTFS = Path("/opt/saaf/rootfs/ubuntu-24.04-python-base")
 DEFAULT_OVERLAY_DIR = Path("/opt/saaf/.agentfs")
+
+# L1: CLI output goes through ``logging`` so systemd / operators can
+# redirect + filter by level. The handler is attached at import time so
+# command functions invoked directly (e.g. ``args.func(args)`` in tests)
+# still produce output without routing through ``main()``. Handler resolves
+# ``sys.stdout`` dynamically on each emit so pytest's ``capsys`` — which
+# swaps ``sys.stdout`` after import — still captures everything under
+# ``captured.out``. A plain ``StreamHandler(stream=sys.stdout)`` would pin
+# the original stdout and silently bypass capsys.
+class _DynamicStdoutHandler(logging.StreamHandler):
+    @property
+    def stream(self):
+        return sys.stdout
+
+    @stream.setter
+    def stream(self, _value):
+        # StreamHandler.__init__ tries to set self.stream; ignore so the
+        # property lookup above stays authoritative.
+        pass
+
+
+logger = logging.getLogger("saaf_shell")
+_stdout_handler = _DynamicStdoutHandler()
+_stdout_handler.setFormatter(logging.Formatter("%(message)s"))
+logger.addHandler(_stdout_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
+
+# L3: the narrow set of exceptions saaf-shell commands are expected to
+# surface. Anything outside this tuple is a bug in the shell and should
+# produce a traceback instead of a swallowed "FAIL — ...". Kept centrally
+# so a new command can't silently broaden the catch.
+_EXPECTED_ERRORS: tuple[type[BaseException], ...] = (
+    ValueError,
+    FileNotFoundError,
+    NetworkPolicyError,
+    IpForwardEnabledError,
+    AgentFSError,
+    subprocess.CalledProcessError,
+)
+
+
+def _configure_logging(verbose: bool) -> None:
+    """Install a stdout handler at INFO (or DEBUG with ``--verbose``)."""
+    if logger.handlers:
+        # Already configured (e.g. repeated ``main()`` calls in tests).
+        return
+    handler = logging.StreamHandler(stream=sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG if verbose else logging.INFO)
+    logger.propagate = False
 
 
 def _agentfs_client() -> AgentFSClient:
@@ -40,7 +95,7 @@ def list_sessions() -> list[str]:
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate a saaf-manifest.yaml file.
 
-    As of v0.8.7, ``validate_manifest`` folds in the v1 network-policy
+    As of v0.8.7 ``validate_manifest`` folds in the v1 network-policy
     check that previously lived behind a separate
     ``validate_v1_network_rules`` call (M1). A single pass is now
     authoritative; the runtime path still re-checks as
@@ -49,15 +104,15 @@ def cmd_validate(args: argparse.Namespace) -> int:
     result = validate_manifest(args.manifest)
 
     if not result.valid:
-        print(f"INVALID — {len(result.errors)} error(s) in {args.manifest}:\n")
+        logger.info("INVALID — %d error(s) in %s:\n", len(result.errors), args.manifest)
         for err in result.errors:
-            print(f"  [{err.field}] {err.message}")
+            logger.info("  [%s] %s", err.field, err.message)
         return 1
 
-    print(f"OK — {args.manifest} is valid")
+    logger.info("OK — %s is valid", args.manifest)
     if result.manifest:
-        print(f"  name: {result.manifest.get('name', '?')}")
-        print(f"  version: {result.manifest.get('version', '?')}")
+        logger.info("  name: %s", result.manifest.get("name", "?"))
+        logger.info("  version: %s", result.manifest.get("version", "?"))
     return 0
 
 
@@ -66,10 +121,10 @@ def cmd_verify_log(args: argparse.Namespace) -> int:
     valid, message = verify_log(args.log)
 
     if valid:
-        print(f"OK — {message}")
+        logger.info("OK — %s", message)
         return 0
 
-    print(f"FAIL — {message}")
+    logger.info("FAIL — %s", message)
     return 1
 
 
@@ -77,11 +132,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     """Launch a target repo inside the compliance shell."""
     try:
         session_id = run_manifest(args.manifest)
-    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
-        print(f"FAIL — {exc}")
+    except _EXPECTED_ERRORS as exc:
+        logger.info("FAIL — %s", exc)
         return 1
 
-    print(f"OK — started session {session_id}")
+    logger.info("OK — started session %s", session_id)
     return 0
 
 
@@ -89,16 +144,16 @@ def cmd_diff(args: argparse.Namespace) -> int:
     """Inspect AgentFS filesystem changes."""
     try:
         changes = diff_session(args.agent_id)
-    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
-        print(f"FAIL — {exc}")
+    except _EXPECTED_ERRORS as exc:
+        logger.info("FAIL — %s", exc)
         return 1
 
     if not changes:
-        print(f"OK — no changes for {args.agent_id}")
+        logger.info("OK — no changes for %s", args.agent_id)
         return 0
 
     for line in changes:
-        print(line)
+        logger.info("%s", line)
     return 0
 
 
@@ -106,16 +161,16 @@ def cmd_sessions(args: argparse.Namespace) -> int:
     """List all agent sessions."""
     try:
         sessions = list_sessions()
-    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
-        print(f"FAIL — {exc}")
+    except _EXPECTED_ERRORS as exc:
+        logger.info("FAIL — %s", exc)
         return 1
 
     if not sessions:
-        print("OK — no sessions found")
+        logger.info("OK — no sessions found")
         return 0
 
     for session_id in sessions:
-        print(session_id)
+        logger.info("%s", session_id)
     return 0
 
 
@@ -133,13 +188,13 @@ def cmd_test(args: argparse.Namespace) -> int:
         elif args.suite == "red-team":
             result = run_red_team_suite(cases_path=args.cases, endpoint=args.endpoint)
         else:
-            print(f"FAIL — unknown suite: {args.suite}")
+            logger.info("FAIL — unknown suite: %s", args.suite)
             return 1
-    except Exception as exc:  # pragma: no cover - exercised via CLI tests with monkeypatch
-        print(f"FAIL — {exc}")
+    except _EXPECTED_ERRORS as exc:
+        logger.info("FAIL — %s", exc)
         return 1
 
-    print(result)
+    logger.info("%s", result)
     return 0
 
 
@@ -147,6 +202,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="saaf-shell",
         description="Compliance shell for AI agent workloads — GDPR/AVG, DORA, EU AI Act",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable DEBUG-level logging (default: INFO).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -191,6 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    _configure_logging(getattr(args, "verbose", False))
     return args.func(args)
 
 
