@@ -151,10 +151,12 @@ langchain-core==1.2.28
     #   langgraph-checkpoint
     #   langgraph-prebuilt
     #   nemoguardrails
-langchain-openai==1.1.12
+langchain-openai==1.1.14
     # via saaf-compliance-shell (pyproject.toml)
-langchain-text-splitters==1.1.1
+    # pinned >= 1.1.14 per GHSA-r7w7-9xr2-qq2r (pip-audit CI gate)
+langchain-text-splitters==1.1.2
     # via langchain-classic
+    # pinned >= 1.1.2 per GHSA-fv5p-p927-qmxr (pip-audit CI gate)
 langgraph==1.1.6
     # via langchain
 langgraph-checkpoint==4.0.1
