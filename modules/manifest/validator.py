@@ -4,14 +4,33 @@ Validates target repo manifests against the required schema before
 the shell accepts them. Used by `saaf-shell validate` and at boot time.
 """
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 
 VALID_DATA_CLASSIFICATIONS = {"sensitive", "test"}
+# Presidio ships dozens of additional recognizers (CREDIT_CARD, IBAN_CODE,
+# IP_ADDRESS, PHONE_NUMBER, US_SSN, ...). See
+# https://microsoft.github.io/presidio/supported_entities/ and the custom
+# BSN_NL recognizer in ``guardrails/actions/presidio_redact.py``. Add new
+# entries here when extending PII coverage — the validator rejects anything
+# unknown so a typo can't silently become a no-op mask.
 VALID_PII_ENTITIES = {"PERSON", "EMAIL_ADDRESS", "BSN_NL"}
 REQUIRED_FILESYSTEM_PATHS = {"/audit_workspace"}
+
+# Kernel cmdline / boot-args must not carry shell metacharacters.
+# ``_encode_boot_value`` in ``modules/isolation/firecracker.py`` only
+# escapes space — anything else (``"``, ``'``, ``\``, ``$``, newline,
+# ``=`` embedded mid-value) would malform the parameter or let the
+# manifest inject a second kernel parameter. Validate at manifest
+# time so the Firecracker config never gets built from a poisoned
+# entrypoint/workdir/env value.
+_BOOT_ARG_SAFE_RE = re.compile(r"^[A-Za-z0-9_./:@\-+ ]*$")
+_BOOT_ARG_SAFE_DESCRIPTION = (
+    "alphanumeric, space, and any of: _ . / : @ - +"
+)
 
 
 @dataclass
@@ -85,15 +104,56 @@ def _check_agent(manifest: dict, result: ValidationResult) -> None:
         result.add_error("agent", "Missing required section 'agent'")
         return
 
-    if "entrypoint" not in agent:
+    entrypoint = agent.get("entrypoint")
+    if entrypoint is None:
         result.add_error("agent.entrypoint", "Missing required field 'agent.entrypoint'")
+    else:
+        _check_boot_arg(result, "agent.entrypoint", entrypoint)
 
-    if "working_directory" not in agent:
+    workdir = agent.get("working_directory")
+    if workdir is None:
         result.add_error("agent.working_directory", "Missing 'agent.working_directory' — should be /audit_workspace")
+    else:
+        _check_boot_arg(result, "agent.working_directory", workdir)
 
     env = agent.get("env", {})
     if "INFERENCE_URL" not in env:
         result.add_error("agent.env.INFERENCE_URL", "Missing INFERENCE_URL — agent must use the shell's guardrails endpoint")
+    for key, value in env.items():
+        # Kernel-cmdline keys must themselves be shell-safe; values go through
+        # ``_encode_boot_value`` which only escapes spaces, so the same
+        # restrictions apply.
+        _check_boot_arg(result, f"agent.env.{key}", str(key), forbid_space=True)
+        _check_boot_arg(result, f"agent.env.{key}", str(value))
+
+
+def _check_boot_arg(
+    result: ValidationResult,
+    field_name: str,
+    value: object,
+    *,
+    forbid_space: bool = False,
+) -> None:
+    """Reject manifest values that would malform the kernel cmdline.
+
+    Called for every value that ``firecracker.build_vm_config`` folds
+    into ``boot_args``. Only a conservative allowlist is accepted; a
+    reject here is preferable to a silently-truncated or
+    second-parameter-injecting boot arg at VM start.
+    """
+    if not isinstance(value, str):
+        result.add_error(field_name, f"Must be a string, got {type(value).__name__}")
+        return
+    pattern = _BOOT_ARG_SAFE_RE
+    if forbid_space and " " in value:
+        result.add_error(field_name, "Env var name must not contain spaces")
+        return
+    if not pattern.fullmatch(value):
+        result.add_error(
+            field_name,
+            f"Value contains characters not allowed on the kernel cmdline. "
+            f"Allowed: {_BOOT_ARG_SAFE_DESCRIPTION}.",
+        )
 
 
 def _check_data_classification(manifest: dict, result: ValidationResult) -> None:

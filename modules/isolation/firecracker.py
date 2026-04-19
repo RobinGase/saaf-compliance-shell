@@ -110,6 +110,19 @@ def _tail_bytes(path: Path, n: int) -> str:
 
 
 def _encode_boot_value(value: str) -> str:
+    """Escape a single kernel-cmdline value for ``/proc/cmdline`` parsing.
+
+    Linux's ``/proc/cmdline`` splits on whitespace, so a value that
+    contains a literal space would be read as two parameters. Convert
+    spaces to ``\\x20`` — the init hook in
+    ``scripts/rootfs-init.sh`` decodes the escape before use.
+
+    Other shell metacharacters (``"``, ``'``, ``\\``, ``$``, newline,
+    ``=`` mid-value) are *not* handled here; they are rejected at
+    manifest-validation time by ``_check_boot_arg`` in
+    ``modules/manifest/validator.py`` so a malformed value never
+    reaches the VM config.
+    """
     encoded = []
     for char in value:
         if char == " ":
