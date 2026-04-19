@@ -141,3 +141,55 @@ class TestBootArgValidation:
         path = self._write_manifest(tmp_path, {})
         result = validate_manifest(path)
         assert result.valid, result.errors
+
+
+class TestV1NetworkPolicyFolding:
+    """M1: validate_manifest now also enforces the v1-only network policy
+    (gateway:8088, exactly one rule). Previously this only ran at runtime
+    from modules.isolation.runtime.run_manifest."""
+
+    def _write(self, tmp_path: Path, allow: list[dict]) -> Path:
+        import yaml as _yaml
+        manifest = {
+            "version": 1,
+            "name": "vendor-guard",
+            "agent": {
+                "entrypoint": "python3 -m vendor_guard.agent",
+                "working_directory": "/audit_workspace",
+                "env": {"INFERENCE_URL": "http://172.16.0.1:8088/v1/chat/completions"},
+            },
+            "data_classification": {"default": "sensitive"},
+            "filesystem": {"read_write": ["/audit_workspace"]},
+            "network": {"allow": allow},
+            "resources": {"vcpu_count": 2, "mem_size_mib": 2048},
+            "pii": {"entities": ["PERSON"]},
+            "audit": {"retention_days": 2555},
+        }
+        path = tmp_path / "manifest.yaml"
+        path.write_text(_yaml.safe_dump(manifest), encoding="utf-8")
+        return path
+
+    def test_two_allow_rules_rejected(self, tmp_path: Path):
+        path = self._write(tmp_path, [
+            {"host": "gateway", "port": 8088, "purpose": "nemo_guardrails"},
+            {"host": "gateway", "port": 9090, "purpose": "metrics"},
+        ])
+        result = validate_manifest(path)
+        assert not result.valid
+        assert any(e.field == "network.allow" and "exactly one" in e.message for e in result.errors)
+
+    def test_wrong_host_rejected(self, tmp_path: Path):
+        path = self._write(tmp_path, [
+            {"host": "internet", "port": 8088, "purpose": "x"},
+        ])
+        result = validate_manifest(path)
+        assert not result.valid
+        assert any(e.field == "network.allow[0].host" for e in result.errors)
+
+    def test_wrong_port_rejected(self, tmp_path: Path):
+        path = self._write(tmp_path, [
+            {"host": "gateway", "port": 443, "purpose": "x"},
+        ])
+        result = validate_manifest(path)
+        assert not result.valid
+        assert any(e.field == "network.allow[0].port" for e in result.errors)

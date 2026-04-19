@@ -9,6 +9,9 @@ description = "Modular compliance wrapper for AI agent workloads"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+# TODO(v0.9): retest on 3.14 once nemoguardrails >= 0.11 is released and
+# drops its own <3.14 cap. The upper bound rots visibly so this line
+# doesn't survive a 3.14 RC without being revisited.
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "nemoguardrails>=0.10.0",

@@ -187,6 +187,20 @@ def _check_filesystem(manifest: dict, result: ValidationResult) -> None:
 
 
 def _check_network(manifest: dict, result: ValidationResult) -> None:
+    """Validate the network section *including* the v1-only policy.
+
+    M1: ``modules/isolation/network.validate_v1_network_rules`` used
+    to live outside this function, raising ``NetworkPolicyError`` at
+    runtime. Programmatic callers of ``validate_manifest`` would
+    green-light a manifest that then failed inside
+    ``run_manifest``. The v1 checks are folded in here so every
+    caller sees a single authoritative answer.
+    """
+    # Deferred import keeps the validator callable in environments
+    # where the isolation layer's dependencies aren't installed
+    # (e.g. a minimal container running only the manifest linter).
+    from modules.isolation.network import GUARDRAILS_PORT
+
     net = manifest.get("network")
     if not net:
         result.add_error("network", "Missing required section 'network'")
@@ -204,6 +218,28 @@ def _check_network(manifest: dict, result: ValidationResult) -> None:
             result.add_error(f"network.allow[{i}].port", "Missing 'port'")
         if "purpose" not in rule:
             result.add_error(f"network.allow[{i}].purpose", "Missing 'purpose'")
+
+    # v1 policy: exactly one rule, gateway:8088. Intentionally narrow;
+    # the one-rule limit stops being v1 once routed egress lands in v0.9.
+    if len(allow) != 1:
+        result.add_error(
+            "network.allow",
+            f"v1 network policy permits exactly one rule (gateway:{GUARDRAILS_PORT}); "
+            f"got {len(allow)}",
+        )
+        return
+
+    rule = allow[0]
+    if rule.get("host") != "gateway":
+        result.add_error(
+            "network.allow[0].host",
+            f"v1 network policy requires host='gateway'; got {rule.get('host')!r}",
+        )
+    if rule.get("port") != GUARDRAILS_PORT:
+        result.add_error(
+            "network.allow[0].port",
+            f"v1 network policy requires port={GUARDRAILS_PORT}; got {rule.get('port')!r}",
+        )
 
 
 def _check_resources(manifest: dict, result: ValidationResult) -> None:

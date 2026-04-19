@@ -17,7 +17,6 @@ from modules.audit.log import verify_log
 from modules.guardrails.red_team import run_red_team_suite
 from modules.guardrails.routing_check import run_guardrails_routing_validation
 from modules.isolation.agentfs import AgentFSClient
-from modules.isolation.network import NetworkPolicyError, validate_v1_network_rules
 from modules.isolation.runtime import run_manifest
 from modules.isolation.smoke import run_vm_probe
 from modules.manifest.validator import validate_manifest
@@ -41,9 +40,11 @@ def list_sessions() -> list[str]:
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate a saaf-manifest.yaml file.
 
-    Runs schema validation first, then the v1 network-policy check that
-    ``run_manifest`` enforces at launch. Without the second step the CLI
-    would green-light manifests that are guaranteed to fail at runtime.
+    As of v0.8.7, ``validate_manifest`` folds in the v1 network-policy
+    check that previously lived behind a separate
+    ``validate_v1_network_rules`` call (M1). A single pass is now
+    authoritative; the runtime path still re-checks as
+    belt-and-suspenders.
     """
     result = validate_manifest(args.manifest)
 
@@ -52,13 +53,6 @@ def cmd_validate(args: argparse.Namespace) -> int:
         for err in result.errors:
             print(f"  [{err.field}] {err.message}")
         return 1
-
-    if result.manifest:
-        try:
-            validate_v1_network_rules(result.manifest)
-        except NetworkPolicyError as exc:
-            print(f"INVALID — {args.manifest}:\n  [network] {exc}")
-            return 1
 
     print(f"OK — {args.manifest} is valid")
     if result.manifest:

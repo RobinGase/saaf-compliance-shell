@@ -58,7 +58,10 @@ class TestValidateCommand:
         assert rc == 1
         out = capsys.readouterr().out
         assert "INVALID" in out
-        assert "[network]" in out
+        # M1: the v1-policy check is now part of validate_manifest, so the
+        # error is reported under the specific field (network.allow) rather
+        # than the legacy top-level network policy namespace.
+        assert "[network.allow]" in out
         assert "gateway:8088" in out
 
 
