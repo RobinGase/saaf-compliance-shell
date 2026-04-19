@@ -299,7 +299,7 @@ Landed on `main` as `fe7d2be`, tagged `v0.9.0-s5`.
 
 ## S6 — Red-team quick-wins (RT-04, RT-09, RT-10)  (v0.9.0-s6)
 
-Landed on `main` (pending tag `v0.9.0-s6`).
+Landed on `main` as `0e4c8d4`, tagged `v0.9.0-s6`.
 
 External red-team review (GPT-5.4, 2026-04-19T15:27:54+02:00) produced
 10 findings against the v0.9.0-s5 HEAD. All 10 were verified real
