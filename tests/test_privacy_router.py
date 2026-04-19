@@ -12,7 +12,14 @@ from modules.router.privacy_router import _log_route_decision, app
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    """TestClient as a context manager so FastAPI lifespan runs and the
+    module-level AsyncClient (H8) is attached to ``app.state``.
+
+    Individual tests replace ``app.state.http_client`` with a mock to
+    avoid real network traffic; the lifespan client is closed on exit.
+    """
+    with TestClient(app) as tc:
+        yield tc
 
 
 @pytest.fixture
@@ -22,36 +29,50 @@ def tmp_audit_log(tmp_path):
         yield log_path
 
 
+def _fake_http_client(
+    *,
+    post_return=None,
+    get_return=None,
+    post_side_effect=None,
+    get_side_effect=None,
+) -> AsyncMock:
+    """Build an AsyncMock that mimics the subset of httpx.AsyncClient the
+    router actually calls (``.post`` and ``.get``). Tests swap this into
+    ``app.state.http_client`` for the duration of a request."""
+    client = AsyncMock()
+    if post_side_effect is not None:
+        client.post = AsyncMock(side_effect=post_side_effect)
+    else:
+        client.post = AsyncMock(return_value=post_return)
+    if get_side_effect is not None:
+        client.get = AsyncMock(side_effect=get_side_effect)
+    else:
+        client.get = AsyncMock(return_value=get_return)
+    return client
+
+
 class TestHealthEndpoint:
     def test_health_returns_ok(self, client):
-        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
-            mock_resp = AsyncMock()
-            mock_resp.status_code = 200
-            mock_instance = AsyncMock()
-            mock_instance.get = AsyncMock(return_value=mock_resp)
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=False)
-            mock_client.return_value = mock_instance
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        app.state.http_client = _fake_http_client(get_return=mock_resp)
 
-            resp = client.get("/health")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["router"] == "ok"
-            assert data["model_status"] == "ok"
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["router"] == "ok"
+        assert data["model_status"] == "ok"
 
     def test_health_model_unreachable(self, client):
-        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
-            mock_instance = AsyncMock()
-            mock_instance.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=False)
-            mock_client.return_value = mock_instance
+        app.state.http_client = _fake_http_client(
+            get_side_effect=httpx.ConnectError("refused")
+        )
 
-            resp = client.get("/health")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["router"] == "ok"
-            assert data["model_status"] == "unreachable"
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["router"] == "ok"
+        assert data["model_status"] == "unreachable"
 
 
 class TestRouteEndpoint:
@@ -63,26 +84,20 @@ class TestRouteEndpoint:
         mock_response_body = json.dumps({
             "choices": [{"message": {"content": "Hi there"}}],
         })
+        mock_resp = AsyncMock()
+        mock_resp.content = mock_response_body.encode()
+        mock_resp.status_code = 200
+        app.state.http_client = _fake_http_client(post_return=mock_resp)
 
-        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
-            mock_resp = AsyncMock()
-            mock_resp.content = mock_response_body.encode()
-            mock_resp.status_code = 200
-            mock_instance = AsyncMock()
-            mock_instance.post = AsyncMock(return_value=mock_resp)
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=False)
-            mock_client.return_value = mock_instance
+        resp = client.post(
+            "/v1/chat/completions",
+            content=mock_body,
+            headers={"Content-Type": "application/json"},
+        )
 
-            resp = client.post(
-                "/v1/chat/completions",
-                content=mock_body,
-                headers={"Content-Type": "application/json"},
-            )
-
-            assert resp.status_code == 200
-            data = resp.json()
-            assert "choices" in data
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "choices" in data
 
     def test_route_logs_model_from_request_body(self, client, tmp_audit_log):
         """The audited model name comes from the request payload, not a
@@ -93,22 +108,16 @@ class TestRouteEndpoint:
             "messages": [{"role": "user", "content": "Hello"}],
         })
         mock_response_body = json.dumps({"choices": [{"message": {"content": "ok"}}]})
+        mock_resp = AsyncMock()
+        mock_resp.content = mock_response_body.encode()
+        mock_resp.status_code = 200
+        app.state.http_client = _fake_http_client(post_return=mock_resp)
 
-        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
-            mock_resp = AsyncMock()
-            mock_resp.content = mock_response_body.encode()
-            mock_resp.status_code = 200
-            mock_instance = AsyncMock()
-            mock_instance.post = AsyncMock(return_value=mock_resp)
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=False)
-            mock_client.return_value = mock_instance
-
-            client.post(
-                "/v1/chat/completions",
-                content=mock_body,
-                headers={"Content-Type": "application/json"},
-            )
+        client.post(
+            "/v1/chat/completions",
+            content=mock_body,
+            headers={"Content-Type": "application/json"},
+        )
 
         lines = tmp_audit_log.read_text().strip().split("\n")
         record = json.loads(lines[-1])
@@ -118,21 +127,16 @@ class TestRouteEndpoint:
     def test_route_logs_unknown_model_for_malformed_body(self, client, tmp_audit_log):
         """A body that can't be parsed as JSON must still produce a
         route_decision event — logging is load-bearing for the audit chain."""
-        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
-            mock_resp = AsyncMock()
-            mock_resp.content = b'{"choices":[]}'
-            mock_resp.status_code = 200
-            mock_instance = AsyncMock()
-            mock_instance.post = AsyncMock(return_value=mock_resp)
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=False)
-            mock_client.return_value = mock_instance
+        mock_resp = AsyncMock()
+        mock_resp.content = b'{"choices":[]}'
+        mock_resp.status_code = 200
+        app.state.http_client = _fake_http_client(post_return=mock_resp)
 
-            client.post(
-                "/v1/chat/completions",
-                content=b"not-json",
-                headers={"Content-Type": "application/json"},
-            )
+        client.post(
+            "/v1/chat/completions",
+            content=b"not-json",
+            headers={"Content-Type": "application/json"},
+        )
 
         lines = tmp_audit_log.read_text().strip().split("\n")
         record = json.loads(lines[-1])
@@ -140,23 +144,37 @@ class TestRouteEndpoint:
         assert record["model"] == "unknown"
 
     def test_route_returns_upstream_error(self, client):
-        with patch("modules.router.privacy_router.httpx.AsyncClient") as mock_client:
-            mock_resp = AsyncMock()
-            mock_resp.content = b'{"error":"model overloaded"}'
-            mock_resp.status_code = 503
-            mock_instance = AsyncMock()
-            mock_instance.post = AsyncMock(return_value=mock_resp)
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=False)
-            mock_client.return_value = mock_instance
+        mock_resp = AsyncMock()
+        mock_resp.content = b'{"error":"model overloaded"}'
+        mock_resp.status_code = 503
+        app.state.http_client = _fake_http_client(post_return=mock_resp)
 
-            resp = client.post(
+        resp = client.post(
+            "/v1/chat/completions",
+            content=b'{"messages":[]}',
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert resp.status_code == 503
+
+    def test_http_client_is_reused_across_requests(self, client):
+        """H8: the lifespan-owned client must be the same instance across
+        requests — a per-request client would defeat the connection pool
+        that the whole refactor exists to enable."""
+        mock_resp = AsyncMock()
+        mock_resp.content = b'{"ok":true}'
+        mock_resp.status_code = 200
+        fake = _fake_http_client(post_return=mock_resp)
+        app.state.http_client = fake
+
+        for _ in range(3):
+            client.post(
                 "/v1/chat/completions",
                 content=b'{"messages":[]}',
                 headers={"Content-Type": "application/json"},
             )
 
-            assert resp.status_code == 503
+        assert fake.post.await_count == 3
 
 
 class TestRouteLogging:

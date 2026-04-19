@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, Request, Response
@@ -23,8 +24,25 @@ AUDIT_LOG_PATH = os.environ.get(
 )
 REQUEST_TIMEOUT = float(os.environ.get("REQUEST_TIMEOUT", "120.0"))
 
-app = FastAPI(title="saaf-privacy-router", version="1.0.0")
 logger = logging.getLogger("privacy_router")
+
+
+# H8: a module-level AsyncClient reused across requests. The previous
+# per-request ``async with httpx.AsyncClient()`` opened a fresh TCP +
+# (eventually) TLS handshake on every inference call — hundreds of ms
+# per RTT on a cold pool, completely unnecessary for a same-host route
+# that's going to ``127.0.0.1``. Lifespan hook owns the client so it
+# closes cleanly on shutdown; tests can poke at the attribute directly.
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    _app.state.http_client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+    try:
+        yield
+    finally:
+        await _app.state.http_client.aclose()
+
+
+app = FastAPI(title="saaf-privacy-router", version="1.0.0", lifespan=_lifespan)
 
 
 def _log_route_decision(target: str, model: str, latency_ms: float) -> None:
@@ -83,13 +101,11 @@ async def route(request: Request) -> Response:
     body = await request.body()
     start = time.monotonic()
 
-    async with httpx.AsyncClient() as client:
-        nim_response = await client.post(
-            LOCAL_NIM_URL,
-            content=body,
-            headers={"Content-Type": "application/json"},
-            timeout=REQUEST_TIMEOUT,
-        )
+    nim_response = await request.app.state.http_client.post(
+        LOCAL_NIM_URL,
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
 
     latency_ms = (time.monotonic() - start) * 1000
 
@@ -107,15 +123,14 @@ async def route(request: Request) -> Response:
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health(request: Request) -> dict:
     """Health check — also verifies model endpoint is reachable."""
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                LOCAL_NIM_URL.replace("/chat/completions", "/models"),
-                timeout=5.0,
-            )
-            model_status = "ok" if resp.status_code == 200 else "unreachable"
+        resp = await request.app.state.http_client.get(
+            LOCAL_NIM_URL.replace("/chat/completions", "/models"),
+            timeout=5.0,
+        )
+        model_status = "ok" if resp.status_code == 200 else "unreachable"
     except httpx.ConnectError:
         model_status = "unreachable"
 
