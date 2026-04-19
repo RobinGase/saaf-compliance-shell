@@ -541,7 +541,7 @@ Pending — needs threat-model decision.
 
 ## S10 — iptables -I + doc alignment (RT-06 + RT-07)  (v0.9.0-s10)
 
-Landed on `main` (SHA filled in the follow-up commit). Tag `v0.9.0-s10`.
+Landed `d2ea046` on `origin/main`. Tag `v0.9.0-s10`.
 Scope trimmed: the original-S7 NAP (compliance-framework) mapping
 document is deferred to its own batch — RT-06 and RT-07 are two
 independent cleanups that shouldn't wait on a framework-mapping
