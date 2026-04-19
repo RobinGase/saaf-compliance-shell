@@ -655,9 +655,62 @@ log.
   and SECURITY.md §3 and §5 no longer overstate what rails.co
   actually does.
 
-## S11 — SBOM + signed releases
+## S11 — SBOM + signed releases  (v0.9.0-s11)
 
-Pending (was original S6).
+Landed on `main` (tag `v0.9.0-s11`). Three design questions were
+open at the start of the batch (signing identity, attestation format,
+verifier UX). Decisions:
+
+- **Signing identity: GitHub OIDC keyless (cosign + Fulcio).** A
+  per-repo keypair would have required key-rotation policy and a
+  secret secure-storage contract that single-maintainer projects
+  rarely execute well; keyless removes the secret entirely and
+  binds signatures to the workflow-run identity (repo + ref + job),
+  which is the actual semantic we want operators to verify.
+- **Attestation format: bare signature + .crt.** SLSA provenance via
+  `slsa-github-generator` was on the table; it is strictly richer
+  (builder identity, materials, invocation parameters) but adds a
+  second verification path and a new predicate schema operators would
+  have to read. For v0.9.0 the bare `cosign sign-blob` output with
+  the Sigstore certificate is enough: the certificate already carries
+  the workflow identity, and the Rekor log entry timestamps the sign.
+  SLSA provenance is tracked for v0.9.1.
+- **Verifier UX: shell script with README snippet.** A `make verify`
+  target would introduce `make` as a user-facing dependency for a
+  single command; a docs-only approach would push operators to
+  assemble cosign flags themselves and get the identity regex wrong.
+  The script pins the OIDC issuer and the identity regex; operators
+  supply only tag and tarball.
+
+Artefacts:
+
+- `.github/workflows/release.yml` — fires on `v*` tag push; permissions
+  `contents: write` (release) + `id-token: write` (OIDC). Steps: (1)
+  `scripts/make-release-tarball.sh`, (2) SPDX SBOM via
+  `anchore/sbom-action@v0`, (3) `sigstore/cosign-installer@v3` +
+  `cosign sign-blob --yes` for tarball and SBOM, (4) release body
+  with sha256 + verify snippet, (5) publish via
+  `softprops/action-gh-release@v2` with all six artefacts
+  (tarball, .sig, .crt, sbom.spdx.json, sbom.sig, sbom.crt).
+- `scripts/verify-release.sh` — wraps `cosign verify-blob`; pins the
+  OIDC issuer to `https://token.actions.githubusercontent.com` and
+  the identity regex to
+  `^https://github.com/RobinGase/saaf-compliance-shell/.github/workflows/release.yml@refs/tags/<tag>$`
+  (tag defaults to the pattern `v.*` when `--tag` is not passed, to
+  support ad-hoc verification). Fails closed if cosign or signature
+  material is missing.
+- `README.md` — "Verifying a release" section after the docs table.
+
+Exit criterion met: every future `v*` tag produces a cryptographically
+verifiable release artefact and an SBOM. First time the workflow
+runs will be on the `v0.9.0` rollup tag; verification flow is
+documented and executable independently of the maintainer.
+
+CI caveat: the workflow was not live-executed inside this batch
+(requires a tag push to run). Smoke-verification of the bash script
+(`bash -n`) is included; the syft + cosign actions are stable
+public versions (`anchore/sbom-action@v0`, `sigstore/cosign-installer@v3
+-> cosign v2.2.4`, `softprops/action-gh-release@v2`).
 
 ## Deferred to v0.9.1+
 

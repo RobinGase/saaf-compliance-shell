@@ -13,7 +13,7 @@ curated narrative. For full commit detail per release, run
 
 Hardening wave toward v0.9.0. Each batch is tagged `v0.9.0-sN` and
 logged in `docs/REVIEW_2026-04-19_hardening.md`. Latest checkpoint:
-`v0.9.0-s9`.
+`v0.9.0-s11`.
 
 ### Security
 - **S1 — oversized-input safe refusal** (`v0.9.0-s1`).
@@ -78,6 +78,18 @@ logged in `docs/REVIEW_2026-04-19_hardening.md`. Latest checkpoint:
   last-message-only scan let a jailbreak land in `messages[0]` and
   slip through. Audit event carries `message_index` + `message_role`
   for the match.
+- **S11 — SBOM + cosign-signed releases** (`v0.9.0-s11`). New
+  `.github/workflows/release.yml` fires on every `v*` tag push and
+  produces: (a) the reproducible tarball from
+  `scripts/make-release-tarball.sh`, (b) an SPDX 2.3 SBOM via syft
+  (`anchore/sbom-action`), (c) cosign keyless signature + certificate
+  for both the tarball and the SBOM. Signing identity is bound to the
+  GitHub OIDC token of the workflow run — no long-lived key material.
+  `scripts/verify-release.sh` walks the Sigstore Rekor transparency
+  log and enforces an identity regex pinned to this repo's release
+  workflow and the supplied tag; operators can independently audit
+  which workflow run signed which release. README "Verifying a
+  release" section documents the end-to-end verification flow.
 - **S9 — router loopback-bind boundary** (`v0.9.0-s9`). *RT-01*:
   `modules/router/privacy_router.py` now refuses any request with
   HTTP 403 `router_bound_to_nonloopback` when the FastAPI ASGI scope

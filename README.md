@@ -134,6 +134,26 @@ Grouped by what you're trying to do.
 | Review the security audit | [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md) |
 | Install services the production way (systemd) | [`ops/systemd/README.md`](ops/systemd/README.md) |
 
+## Verifying a release
+
+Every tagged release publishes a reproducible tarball, an SPDX SBOM,
+and cosign keyless signatures for both. Signatures are bound to the
+GitHub OIDC identity of the release workflow via Sigstore Fulcio; no
+long-lived signing key exists.
+
+```bash
+# After downloading <tarball>, <tarball>.sig, <tarball>.crt from the GitHub release:
+scripts/verify-release.sh saaf-compliance-shell-<sha>.tar.gz --tag v0.9.0
+```
+
+The script calls `cosign verify-blob` with the expected issuer
+(`https://token.actions.githubusercontent.com`) and an identity regex
+pinned to this repo's `release.yml` workflow + the supplied tag.
+Verification walks the public Rekor transparency log, so anyone can
+independently audit when and by which workflow run a release was
+signed. See `.github/workflows/release.yml` for the pipeline and
+`scripts/verify-release.sh` for the verifier.
+
 ## Requirements
 
 - KVM-capable Linux host
