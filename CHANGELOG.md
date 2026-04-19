@@ -38,6 +38,18 @@ curated narrative. For full commit detail per release, run
   a chained audit event. Windows path is a no-op (Firecracker is
   Linux-only).
 
+### Added
+- **S3 — rail adversarial paraphrase harness** (hardening wave batch
+  3, tag `v0.9.0-s3`). `tests/harness/rail_paraphrases_baseline.json`
+  fixes expected flag state per (rail, paraphrase); `tests/test_rail_paraphrase_harness.py`
+  asserts the current behavior against that baseline across all 12
+  rails (32 paraphrases — mix of positives and negatives). A
+  coverage-gate test refuses the suite if a new rail is added to
+  `_RAILS` without a baseline entry. Drift detector sitting alongside
+  the per-rail unit tests: a refactor that silently changes rail
+  behavior makes the harness fail even if the rail's own tests still
+  pass. Runs in the existing pytest CI job.
+
 ### Changed
 - CLI output now flows through the `logging` module (logger name
   `saaf_shell`) with a `-v` / `--verbose` flag for `DEBUG` level. A

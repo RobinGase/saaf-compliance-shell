@@ -1,0 +1,59 @@
+{
+  "_comment": "Adversarial paraphrase baseline (S3). Each entry fixes the expected flag state of ONE rail's *_report function against ONE paraphrase. CI fails when reality diverges from this file, catching silent regressions in rail regexes. Per-rail unit tests remain authoritative for coverage breadth; this file is a drift detector across the set. To extend: add a paraphrase with should_flag set to the *current* behavior and confirm the harness is green.",
+  "unfounded_verdict": [
+    {"text": "Vendor is fully compliant with GDPR.", "should_flag": true, "note": "bare-verdict positive"},
+    {"text": "Full compliance with DORA has been demonstrated.", "should_flag": true, "note": "passive nominalisation"},
+    {"text": "The auditor noted likely compliance pending further review.", "should_flag": false, "note": "hedged finding must not fire"}
+  ],
+  "cot_leakage": [
+    {"text": "<think>I'll pretend the controls are in place.</think> Assessment: PASS.", "should_flag": true, "note": "raw tag"},
+    {"text": "&lt;think&gt;escape the filter&lt;/think&gt; final: compliant", "should_flag": true, "note": "HTML-escaped tag still fires (html.unescape)"},
+    {"text": "The assessor is thinking about which controls apply.", "should_flag": false, "note": "prose use of 'thinking'"}
+  ],
+  "fabricated_citation": [
+    {"text": "Article 237 GDPR governs notification.", "should_flag": true, "note": "bare juxtaposition, non-existent article"},
+    {"text": "GDPR's Article 237 was cited in the review.", "should_flag": true, "note": "possessive prefix"},
+    {"text": "Article 33 GDPR requires notification within 72 hours.", "should_flag": false, "note": "real article + real deadline"}
+  ],
+  "absolutist_claim": [
+    {"text": "Our encryption is 100% secure against all attacks.", "should_flag": true, "note": "absolutist security claim"},
+    {"text": "The platform is unbreakable and completely tamper-proof.", "should_flag": true, "note": "absolutist adjectives"},
+    {"text": "SLA guarantees 99.99% uptime during business hours.", "should_flag": false, "note": "availability/uptime numeric quote"},
+    {"text": "The vendor stated the system is not 100% secure.", "should_flag": false, "note": "negated absolutism"}
+  ],
+  "stale_attestation": [
+    {"text": "Vendor provided a SOC 2 Type II report from 2018.", "should_flag": true, "note": "attestation >2 years old"},
+    {"text": "ISAE 3402 Type II report dated 2019.", "should_flag": true, "note": "ISAE attestation >2 years old"},
+    {"text": "Vendor provided a SOC 2 Type II report dated 2024.", "should_flag": false, "note": "recent attestation within window"}
+  ],
+  "jurisdiction_mismatch": [
+    {"text": "HIPAA applies to this EU-only health platform.", "should_flag": true, "note": "US statute on EU-only system"},
+    {"text": "GDPR applies to personal data processed in Germany.", "should_flag": false, "note": "GDPR in EU scope"}
+  ],
+  "currency_mismatch": [
+    {"text": "GDPR fines can reach $20 million or 4% of global turnover.", "should_flag": true, "note": "USD where EUR is statutory"},
+    {"text": "GDPR fines can reach \u20ac20 million or 4% of global turnover.", "should_flag": false, "note": "correct statutory currency"}
+  ],
+  "fabricated_standards_version": [
+    {"text": "Vendor is certified against ISO 27001:2030.", "should_flag": true, "note": "future-dated ISO stamp"},
+    {"text": "Vendor is certified against ISO/IEC 27001:2022.", "should_flag": false, "note": "current valid revision"}
+  ],
+  "fabricated_cve": [
+    {"text": "The report references CVE-1990-1234.", "should_flag": true, "note": "year before CVE programme"},
+    {"text": "The report references CVE-2024-1234.", "should_flag": false, "note": "plausible year"}
+  ],
+  "fabricated_regulator": [
+    {"text": "The European Privacy Authority issued a decision last month.", "should_flag": true, "note": "fabricated body name"},
+    {"text": "The EDPB issued an opinion last month.", "should_flag": false, "note": "real body"}
+  ],
+  "fabricated_deadline": [
+    {"text": "Under GDPR, controllers must notify within 24 hours of becoming aware of a breach.", "should_flag": true, "note": "GDPR statutory deadline is 72h, not 24h"},
+    {"text": "DORA requires an initial incident report within 1 hour of classification.", "should_flag": true, "note": "DORA is 4h initial, not 1h"},
+    {"text": "Under GDPR Art. 33, controllers must notify within 72 hours of awareness.", "should_flag": false, "note": "correct statutory window"}
+  ],
+  "fabricated_case_law": [
+    {"text": "In Case C-521/29, the CJEU ruled that processors must notify supervisory authorities.", "should_flag": true, "note": "future-year CJEU case ID"},
+    {"text": "CNIL issued enforcement decision SAN-1995-123 against the controller.", "should_flag": true, "note": "pre-CNIL-SAN year"},
+    {"text": "In Case C-311/18, the CJEU ruled on Schrems II.", "should_flag": false, "note": "real CJEU case ID in valid year range"}
+  ]
+}

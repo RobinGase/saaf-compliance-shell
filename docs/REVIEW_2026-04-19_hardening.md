@@ -103,9 +103,36 @@ Landed `c874cae` on `origin/main`. Tag `v0.9.0-s2`.
 - Exit criterion met: no two `run_manifest` calls can hold host
   resources concurrently; every contention attempt is auditable.
 
-## S3 — rail adversarial paraphrase harness
+## S3 — rail adversarial paraphrase harness  (v0.9.0-s3)
 
-Pending (task #4).
+Landed `<sha-placeholder>` on `origin/main`. Tag `v0.9.0-s3`.
+
+- Finding as stated: per-rail unit tests cover each rail deeply but
+  nothing protects against cross-rail drift. A regex edit in
+  `deadline_rule.py` that inadvertently narrows coverage or broadens
+  false positives on adjacent-rail wording would pass the per-rail
+  suite while regressing a rail elsewhere.
+- Fix: new `tests/harness/rail_paraphrases_baseline.json` freezes
+  expected flag state per (rail, paraphrase). `tests/test_rail_paraphrase_harness.py`
+  parametrizes over the JSON and asserts `report_fn(text)[flag_key]
+  == should_flag`. Coverage-gate test
+  (`test_harness_covers_every_rail`) refuses the suite if a rail is
+  added to `_RAILS` without at least one paraphrase in the baseline.
+- Coverage: all 12 rails, 32 paraphrases total — mix of positives
+  (should fire) and negatives (must not fire). Negatives are the
+  load-bearing ones: they catch regex-broadening regressions that
+  per-rail tests might miss because they focus on inputs near the
+  happy path.
+- Harness is part of the default pytest run (no separate CI job
+  needed — the existing `Test / pytest` workflow picks it up). A
+  separate CI job was considered and rejected as extra machinery with
+  no isolation benefit; the harness is pure-Python and runs in
+  milliseconds.
+- Evidence: 671 passed + 5 skipped (baseline 638 + 33 new harness
+  cases) on the Windows dev venv. Ruff clean. Mypy clean.
+- Exit criterion met: baseline commits behavior today; any rail
+  change that flips a baseline entry fails CI with a message telling
+  the author to update the baseline in the same commit.
 
 ## S4 — v0.8.7-deferred bundle
 
