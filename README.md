@@ -179,7 +179,9 @@ signed. See `.github/workflows/release.yml` for the pipeline and
 
 ## Current status
 
-Latest release: **v0.8.6** (2026-04-18). Active work is the post-v0.8.6 hardening wave toward v0.9.0; the most recent checkpoint tag is **v0.9.0-s10** (2026-04-19). Each batch in the wave is published as a `v0.9.0-sN` pre-release tag and logged in [`docs/REVIEW_2026-04-19_hardening.md`](docs/REVIEW_2026-04-19_hardening.md). Twelve output rails, CI-gated branch policy, reproducible release tarball on `dev/main`, and `pip-audit --strict` green on the current lock.
+Latest release: **v0.9.0** (2026-04-19). v0.9.0 rolls up the
+eleven-batch hardening wave (`v0.9.0-s1` through `v0.9.0-s11`) that
+ran after v0.8.7; per-batch detail is in [`docs/REVIEW_2026-04-19_hardening.md`](docs/REVIEW_2026-04-19_hardening.md) and the [`CHANGELOG.md`](CHANGELOG.md). Twelve output rails, CI-gated branch policy, reproducible release tarball, SPDX SBOM + cosign keyless signatures on every `v*` tag, `pip-audit --strict` green on the current lock, and a control-to-article mapping at [`docs/NAP_MAPPING.md`](docs/NAP_MAPPING.md).
 
 Highlights of the hardening wave so far:
 

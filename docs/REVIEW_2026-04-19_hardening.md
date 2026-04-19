@@ -714,4 +714,29 @@ public versions (`anchore/sbom-action@v0`, `sigstore/cosign-installer@v3
 
 ## Deferred to v0.9.1+
 
-(Empty — populate if a batch finds work it can't close in scope.)
+- **Router caller authentication on loopback** — S9 closed RT-01 at
+  the boundary level (loopback-bind refusal + documented-accept). A
+  per-caller authentication layer (UDS with filesystem-permissioned
+  socket, mTLS with saaf-owned CA, or shared-secret header) is
+  tracked for v0.9.1. Scope is explicitly called out in
+  `docs/SECURITY.md` §10.
+- **Output-side PII redaction** — the `mask pii in model output`
+  Colang flow is a `pass` stub. Input-side masking + the S8
+  refusal-event digest cover the audit-leak surface; an output-side
+  Presidio pass to re-run the model's response before returning it
+  to the workload is deferred.
+- **SLSA provenance on releases** — S11 uses bare `cosign sign-blob`
+  output. The Sigstore certificate already carries the workflow
+  identity and Rekor entries timestamp the sign; SLSA provenance
+  via `slsa-github-generator` is strictly richer (builder identity,
+  materials, invocation parameters) and is tracked for v0.9.1.
+- **External sidecar mirror for audit head-pointer** — the S7
+  sidecar lives beside the log by default. A journald / remote-log /
+  WORM object-storage mirror is the documented real external anchor
+  and is an operator-deployment concern, not a shell-runtime change.
+
+## Close
+
+Wave closed 2026-04-19. `v0.9.0` rolled up from the eleven batch
+tags. First cosign-keyless signed release of the project fires on
+the `v0.9.0` tag push via `.github/workflows/release.yml`.

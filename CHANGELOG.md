@@ -11,9 +11,15 @@ curated narrative. For full commit detail per release, run
 
 ## [Unreleased]
 
-Hardening wave toward v0.9.0. Each batch is tagged `v0.9.0-sN` and
-logged in `docs/REVIEW_2026-04-19_hardening.md`. Latest checkpoint:
-`v0.9.0-s11`.
+(nothing pending)
+
+## [0.9.0] - 2026-04-19
+
+Closes the post-v0.8.7 hardening wave. Each batch is tagged
+`v0.9.0-sN` (N=1..11, N=9 cut after N=10) and logged in
+`docs/REVIEW_2026-04-19_hardening.md`. The v0.9.0 tag rolls the
+eleven batch tags into a single release; first cosign-signed release
+of the project.
 
 ### Security
 - **S1 — oversized-input safe refusal** (`v0.9.0-s1`).
