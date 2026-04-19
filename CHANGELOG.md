@@ -13,7 +13,7 @@ curated narrative. For full commit detail per release, run
 
 Hardening wave toward v0.9.0. Each batch is tagged `v0.9.0-sN` and
 logged in `docs/REVIEW_2026-04-19_hardening.md`. Latest checkpoint:
-`v0.9.0-s10`.
+`v0.9.0-s9`.
 
 ### Security
 - **S1 — oversized-input safe refusal** (`v0.9.0-s1`).
@@ -78,6 +78,19 @@ logged in `docs/REVIEW_2026-04-19_hardening.md`. Latest checkpoint:
   last-message-only scan let a jailbreak land in `messages[0]` and
   slip through. Audit event carries `message_index` + `message_role`
   for the match.
+- **S9 — router loopback-bind boundary** (`v0.9.0-s9`). *RT-01*:
+  `modules/router/privacy_router.py` now refuses any request with
+  HTTP 403 `router_bound_to_nonloopback` when the FastAPI ASGI scope
+  reports a non-loopback bind (checked via `scope["server"]` — covers
+  `0.0.0.0`, `::`, and any routable address). Refusals emit a
+  `router_nonloopback_refused` audit event with bind host, bind port,
+  and caller. Operator escape hatch `SAAF_ALLOW_NONLOOPBACK_ROUTER=1`
+  mirrors `SAAF_ALLOW_IP_FORWARD` for operators who front the router
+  with an externally-enforced boundary (mTLS sidecar, filtered LB).
+  `docs/SECURITY.md` §10 documents the v0.9.0 trust model
+  ("documented-accept on loopback; caller authentication deferred to
+  v0.9.1"). 4 new tests cover the loopback matcher, the refusal path
+  (chat + health), and the allow-env escape hatch.
 - **S10 — iptables `-I` on filter chains + doc alignment**
   (`v0.9.0-s10`). *RT-06*: `modules/isolation/network.py` switched all
   filter-table rules in `build_setup_commands` from `-A <chain>` to

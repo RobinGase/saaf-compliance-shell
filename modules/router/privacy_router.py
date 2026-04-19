@@ -5,6 +5,7 @@ No cloud fallback in v1. PII masking is handled by NeMo Guardrails
 before traffic reaches this router.
 """
 
+import ipaddress
 import json
 import logging
 import os
@@ -43,6 +44,65 @@ async def _lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="saaf-privacy-router", version="1.0.0", lifespan=_lifespan)
+
+
+def _is_loopback_host(host: str) -> bool:
+    """True when ``host`` designates a loopback-only bind target.
+
+    Accepts ``localhost`` and any address that ``ipaddress`` resolves as
+    loopback (``127.0.0.0/8``, ``::1``). Wildcards (``0.0.0.0``, ``::``,
+    empty string) return False — those are exactly the binds RT-01
+    exists to refuse.
+    """
+    if host in {"localhost"}:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+@app.middleware("http")
+async def _enforce_loopback_bind(request: Request, call_next):
+    """RT-01: refuse to serve when the router is bound non-loopback.
+
+    The v0.9.0 trust model treats any caller able to reach the router's
+    bind address as authorised to invoke the local model. That model
+    only holds when the bind is loopback — a non-loopback bind silently
+    exposes the model endpoint to the network. We inspect
+    ``scope["server"]`` (uvicorn / hypercorn populate it with the actual
+    bind host + port) and refuse with 403 ``router_bound_to_nonloopback``
+    rather than serve. An operator who owns the network boundary by
+    other means can opt out with ``SAAF_ALLOW_NONLOOPBACK_ROUTER=1`` —
+    same escape-hatch pattern as ``SAAF_ALLOW_IP_FORWARD`` from the
+    isolation setup. Every refusal emits a ``router_nonloopback_refused``
+    audit event so the override surface is visible in the chain.
+    """
+    server = request.scope.get("server")
+    if server is not None:
+        host = server[0] or ""
+        if not _is_loopback_host(host) and os.environ.get(
+            "SAAF_ALLOW_NONLOOPBACK_ROUTER"
+        ) != "1":
+            try:
+                append_chained_event(
+                    AUDIT_LOG_PATH,
+                    "router_nonloopback_refused",
+                    bind_host=host,
+                    bind_port=server[1] if len(server) > 1 else None,
+                    client=request.client.host if request.client else None,
+                )
+            except Exception:
+                logger.error(
+                    "Failed to write router_nonloopback_refused audit event",
+                    exc_info=True,
+                )
+            return Response(
+                content=b'{"detail":"router_bound_to_nonloopback"}',
+                status_code=403,
+                headers={"Content-Type": "application/json"},
+            )
+    return await call_next(request)
 
 
 def _log_route_decision(target: str, model: str, latency_ms: float) -> None:

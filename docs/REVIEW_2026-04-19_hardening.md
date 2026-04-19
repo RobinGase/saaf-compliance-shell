@@ -535,9 +535,56 @@ Landed `34b2d50` on `origin/main`. Tag `v0.9.0-s8`.
   audit chain on a refusal, and no message position can skip the
   preflight tripwire.
 
-## S9 — router boundary (RT-01)
+## S9 — router boundary (RT-01)  (v0.9.0-s9)
 
-Pending — needs threat-model decision.
+Landed on `main` (tag `v0.9.0-s9`). Threat-model decision: **smallest
+correct — documented-accept on loopback, with a loopback-bind check
+enforced in middleware.** UDS + filesystem perms and shared-secret
+mTLS are valuable but are caller-authentication features on top of
+the boundary — they don't close RT-01, which is specifically "the
+router bind can silently expose the model to the network." Caller
+authentication is deferred to v0.9.1 and called out explicitly in the
+new SECURITY.md §10.
+
+- **The gap** — the Privacy Router is the sole path to the local
+  model endpoint; a caller that reaches its bind can invoke the
+  model. Before S9 nothing in the code asserted the bind was
+  loopback. Operator error (a `uvicorn --host 0.0.0.0` during
+  debugging, a systemd unit overridden upstream, a container that
+  pushed the bind to `0.0.0.0` for network-namespace reasons) would
+  silently turn the router into a network service.
+- **The fix** —
+  `modules/router/privacy_router.py::_enforce_loopback_bind`
+  middleware inspects `scope["server"]` on every incoming request.
+  When the bind host isn't in `127.0.0.0/8`, `::1`, or `localhost`
+  (ipaddress-backed check; `0.0.0.0`/`::`/`""` all flagged), the
+  request is refused with HTTP 403 `router_bound_to_nonloopback`
+  and a `router_nonloopback_refused` audit event is emitted (bind
+  host, bind port, caller). `SAAF_ALLOW_NONLOOPBACK_ROUTER=1`
+  mirrors `SAAF_ALLOW_IP_FORWARD` as the operator-owned escape hatch
+  for setups that front the router with an externally-enforced
+  boundary.
+- **Docs** — `docs/SECURITY.md` §10 documents the v0.9.0 trust model
+  — "any caller that can reach the bind is authorised" holds only on
+  loopback; caller authentication on loopback is deferred to v0.9.1.
+  The scope gap is called out by name so the next session doesn't
+  have to reconstruct it from running-log archaeology.
+- **Tests** — `tests/test_privacy_router.py::TestLoopbackBoundary`
+  adds 6 cases: loopback-matcher unit tests (4, IPv4/IPv6/localhost/
+  wildcards), a chat refusal with audit-chain assertion, a health
+  refusal (refusal must cover every endpoint, not just
+  `/v1/chat/completions` — otherwise health becomes a sentinel that
+  a bad bind is serving), and an allow-env escape-hatch positive
+  test. The existing client fixture was shifted to
+  `base_url="http://127.0.0.1"` so existing tests see a loopback
+  scope; non-loopback tests build their own `TestClient(app)` with
+  the default `testserver` host to exercise the refusal.
+- **Evidence** — 633 pytest passed, 36 skipped (pre-existing
+  nemoguardrails collection error excluded). Ruff clean, mypy clean
+  on `modules/router/privacy_router.py`.
+- **Exit criterion met** — RT-01 closed in v0.9.0 at the boundary
+  level; the caller-authentication follow-up is documented as
+  v0.9.1 work and visible in SECURITY.md rather than buried.
 
 ## S10 — iptables -I + doc alignment (RT-06 + RT-07)  (v0.9.0-s10)
 
@@ -548,10 +595,10 @@ independent cleanups that shouldn't wait on a framework-mapping
 writeup, and bundling them with a doc-only batch would have blurred
 the closure evidence.
 
-S9 (RT-01 router boundary) was skipped, not closed — it still blocks
-on Robin's threat-model call (UDS + filesystem perms vs shared
-secret vs documented-accept). Tag sequencing jumps from `v0.9.0-s8`
-to `v0.9.0-s10`; `v0.9.0-s9` is reserved for when RT-01 lands.
+S9 was re-entered after S10 landed (see S9 section above). The
+`v0.9.0-s9` tag was cut after `v0.9.0-s10`; tag-SHA order differs
+from tag-number order, which is fine — tags are checkpoints, not a
+log.
 
 - **RT-06 (filter chains used `-A`)** —
   `modules/isolation/network.py::build_setup_commands` switched from

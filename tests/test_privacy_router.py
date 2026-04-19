@@ -1,13 +1,18 @@
 """Tests for the Privacy Router — FastAPI local-only model routing proxy."""
 
 import json
+import os
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from modules.router.privacy_router import _log_route_decision, app
+from modules.router.privacy_router import (
+    _is_loopback_host,
+    _log_route_decision,
+    app,
+)
 
 
 @pytest.fixture
@@ -17,8 +22,15 @@ def client():
 
     Individual tests replace ``app.state.http_client`` with a mock to
     avoid real network traffic; the lifespan client is closed on exit.
+
+    ``base_url="http://127.0.0.1"`` makes Starlette populate
+    ``scope["server"]`` with a real loopback address so the S9
+    loopback-bind middleware (``_enforce_loopback_bind``) does not
+    refuse the request. Non-loopback behaviour is exercised in
+    ``TestLoopbackBoundary`` via a separate client built without the
+    override.
     """
-    with TestClient(app) as tc:
+    with TestClient(app, base_url="http://127.0.0.1") as tc:
         yield tc
 
 
@@ -199,3 +211,78 @@ class TestRouteLogging:
             model="nemotron-3-8b-instruct",
             latency_ms=10.0,
         )
+
+
+class TestLoopbackBoundary:
+    """S9 / RT-01: router refuses to serve when bound non-loopback unless
+    the operator explicitly acknowledges with
+    ``SAAF_ALLOW_NONLOOPBACK_ROUTER=1``. Trust model is documented in
+    docs/SECURITY.md §10."""
+
+    def test_is_loopback_host_accepts_ipv4_loopback(self):
+        assert _is_loopback_host("127.0.0.1")
+        assert _is_loopback_host("127.0.0.2")  # whole 127.0.0.0/8
+
+    def test_is_loopback_host_accepts_ipv6_loopback(self):
+        assert _is_loopback_host("::1")
+
+    def test_is_loopback_host_accepts_localhost(self):
+        assert _is_loopback_host("localhost")
+
+    def test_is_loopback_host_rejects_wildcards_and_public(self):
+        assert not _is_loopback_host("0.0.0.0")
+        assert not _is_loopback_host("::")
+        assert not _is_loopback_host("")
+        assert not _is_loopback_host("10.0.0.1")
+        assert not _is_loopback_host("192.168.1.50")
+        assert not _is_loopback_host("8.8.8.8")
+
+    def test_route_refused_when_bound_nonloopback(self, tmp_audit_log):
+        """TestClient built without the loopback base_url override binds
+        under 'testserver', which is not loopback — middleware must
+        refuse and the refusal must land in the audit chain."""
+        mock_resp = AsyncMock()
+        mock_resp.content = b'{"ok":true}'
+        mock_resp.status_code = 200
+
+        with TestClient(app) as nonloopback_client:
+            app.state.http_client = _fake_http_client(post_return=mock_resp)
+            resp = nonloopback_client.post(
+                "/v1/chat/completions",
+                content=b'{"messages":[]}',
+                headers={"Content-Type": "application/json"},
+            )
+
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "router_bound_to_nonloopback"
+
+        lines = tmp_audit_log.read_text().strip().split("\n")
+        record = json.loads(lines[-1])
+        assert record["event_type"] == "router_nonloopback_refused"
+        assert record["bind_host"] == "testserver"
+
+    def test_route_served_when_allow_env_set(self):
+        """Operator-owned escape hatch: mirror of SAAF_ALLOW_IP_FORWARD.
+        Setting ``SAAF_ALLOW_NONLOOPBACK_ROUTER=1`` allows a non-loopback
+        bind to serve — still audited, operator owns the risk."""
+        mock_resp = AsyncMock()
+        mock_resp.content = b'{"ok":true}'
+        mock_resp.status_code = 200
+
+        with patch.dict(os.environ, {"SAAF_ALLOW_NONLOOPBACK_ROUTER": "1"}), TestClient(app) as nonloopback_client:
+            app.state.http_client = _fake_http_client(post_return=mock_resp)
+            resp = nonloopback_client.post(
+                "/v1/chat/completions",
+                content=b'{"messages":[]}',
+                headers={"Content-Type": "application/json"},
+            )
+        assert resp.status_code == 200
+
+    def test_health_refused_when_bound_nonloopback(self):
+        """Refusal applies to every endpoint, not just /v1/chat/completions —
+        /health would otherwise be a sentinel that a non-loopback bind
+        was silently accepted."""
+        with TestClient(app) as nonloopback_client:
+            app.state.http_client = _fake_http_client()
+            resp = nonloopback_client.get("/health")
+        assert resp.status_code == 403
