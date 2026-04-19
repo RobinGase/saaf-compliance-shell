@@ -380,7 +380,7 @@ queued for S7–S10 (see §Re-plan below).
 
 ## S7 — audit integrity (RT-02 + RT-03)  (v0.9.0-s7)
 
-Landed on `main` (pending tag `v0.9.0-s7`).
+Landed on `main` as `db5243b`, tagged `v0.9.0-s7`.
 
 Closes the two highest-severity findings from the external GPT-5.4
 red-team review — both were tail-manipulation attacks that stayed
