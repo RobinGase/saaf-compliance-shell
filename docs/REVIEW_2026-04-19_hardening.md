@@ -232,9 +232,70 @@ NFS port → `setuptools_scm` → config-dir rename.
   cache invalidates on config edits, and the version string is
   tag-driven.
 
-## S5 — DORA OJ-verification backstop
+## S5 — DORA OJ-verification backstop  (v0.9.0-s5)
 
-Pending (task #6).
+Landed on `main` (pending tag `v0.9.0-s5`).
+
+- **Deferred finding under verification (P2-1 from v0.8.3 review):**
+  reviewer claimed Commission Delegated Regulation (EU) 2024/1772
+  Art. 5 sets two concurrent initial-notification deadlines for
+  DORA — 4h from classification AND 24h from awareness. Only 4h was
+  ever in `_VALID_WINDOWS_HOURS["DORA"]`; the 24h backstop was
+  deferred pending OJ verification because inventing statutory
+  windows from memory is the exact failure mode this rail exists to
+  catch.
+- **OJ verification on 2026-04-19:** operator pasted the full EN
+  text of 2024/1772 from
+  `https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1772`
+  (ELI: `http://data.europa.eu/eli/reg_del/2024/1772/oj`, OJ L,
+  2024/1772, 25.6.2024). Key finding: **Article 5 is titled "Data
+  losses"** and defines a classification criterion (availability,
+  authenticity, integrity, confidentiality of data), not a
+  notification deadline. **Nothing in 2024/1772 imposes a 24h-from-
+  awareness initial-notification deadline on DORA.** The reviewer's
+  claim was wrong about the location. The only hour-counts anywhere
+  in the regulation are:
+  - Art. 9(3)(a) — *"the duration of the incident is longer than 24
+    hours"* — a duration-materiality threshold for classifying an
+    incident as *major* (how long the incident ran), NOT a reporting
+    window.
+  - Art. 9(3)(b) — *"the service downtime is longer than 2 hours"* —
+    same kind of threshold.
+  DORA's actual reporting timeframes (4h initial / 72h intermediate
+  / 1-month final) are set by Article 19 of the parent Regulation
+  (EU) 2022/2554 plus the separate RTS on reporting timeframes under
+  DORA Art. 20 — **not** by 2024/1772.
+- **Rail outcome:** `_VALID_WINDOWS_HOURS["DORA"] = {4, 72, 720}`
+  stays as-is. No false-positive fix needed. A LLM output claiming
+  "DORA requires 24-hour initial notification under Reg 2024/1772"
+  is fabricated and must continue to fire this rail.
+- **Deliverables:**
+  - `modules/guardrails/deadline_rule.py` module-level docstring
+    corrected. The previous text cited 2024/1772 as the source of
+    the 4h/72h/1-month numbers — that citation was wrong. Replaced
+    with the accurate scoping: 2024/1772 covers classification
+    criteria and materiality thresholds (not deadlines); reporting
+    timeframes come from 2022/2554 Art. 19 + RTS on reporting
+    timeframes. Docstring also now records the 2026-04-19
+    verification and closes P2-1 as reviewer-wrong-about-location.
+  - Four regression tests added to `tests/test_deadline_check.py`:
+    `test_dora_24h_initial_notification_claim_is_flagged_as_fabricated`
+    (canonical phrasing), `..._from_awareness_variant_...` (the
+    specific shape the reviewer's claim predicted),
+    `test_dora_4h_initial_notification_passes` (positive control —
+    statutory 4h still passes), and
+    `test_dora_incident_duration_24h_is_not_a_notification_claim`
+    (negative control — the exact confusion the reviewer hit,
+    describing the Art. 9(3)(a) duration threshold in an audit note
+    is not a notification-deadline claim and must not fire).
+- **Evidence:** 52 pass in `test_deadline_check.py` (+4 new). No
+  production-code value changed; the docstring correction and the
+  new tests are the entire behavioural surface. Ruff + mypy clean on
+  touched files.
+- **Exit criterion met:** the deferred P2-1 finding is closed with
+  OJ evidence; the rail's DORA window set is pinned against the
+  specific misreading a reviewer (or a future LLM) might propose;
+  the docstring no longer contains the wrong statutory citation.
 
 ## S6 — SBOM + signed releases
 

@@ -349,3 +349,78 @@ def test_article_33_alone_does_not_anchor_gdpr() -> None:
     assert findings == [], (
         f"Article-33-only text should not anchor a framework: {findings!r}"
     )
+
+
+# ---- S5 regression: DORA 24h-from-awareness claim is fabricated ------------
+#
+# Deferred finding P2-1 (v0.8.3 review) claimed that Commission Delegated
+# Regulation (EU) 2024/1772 Art. 5 sets both a 4-hour-from-classification
+# AND a 24-hour-from-awareness initial-notification deadline for DORA.
+# Verified against the OJ text on 2026-04-19 as part of hardening wave S5:
+# the claim is wrong about location. 2024/1772 Art. 5 is titled "Data
+# losses" and defines a classification criterion (availability,
+# authenticity, integrity, confidentiality), not a notification
+# deadline. The only 24h reference in the entire regulation is Art.
+# 9(3)(a) — a duration-materiality threshold for classifying an
+# incident as major (how long the incident ran), not a reporting
+# window. DORA's actual reporting timeframes come from Article 19 of
+# the parent Regulation (EU) 2022/2554 plus the separate RTS on
+# reporting timeframes under DORA Art. 20.
+#
+# _VALID_WINDOWS_HOURS["DORA"] = {4, 72, 720} stays as-is. Any LLM
+# output claiming "DORA requires 24-hour initial notification" is
+# fabrication and must fire the rail. Lock that behaviour below.
+
+
+def test_dora_24h_initial_notification_claim_is_flagged_as_fabricated() -> None:
+    """Regression for hardening wave S5 — deferred P2-1 closed as
+    reviewer-wrong-about-location. A DORA 24h-initial-notification
+    claim cites a timeframe that does not exist in the statute; the
+    rail must fire.
+    """
+    text = "DORA requires initial notification within 24 hours of becoming aware of the incident."
+    findings = find_deadline_citations(text)
+    assert len(findings) == 1, (
+        f"expected exactly one DORA deadline finding; got {findings!r}"
+    )
+    finding = findings[0]
+    assert finding.framework == "DORA"
+    assert finding.hours == 24
+    assert finding.is_fabricated, (
+        "DORA 24h initial-notification claim must be flagged as "
+        "fabricated — 2024/1772 contains no such deadline (see "
+        "deadline_rule.py module docstring)."
+    )
+
+
+def test_dora_24h_from_awareness_variant_is_flagged_as_fabricated() -> None:
+    """Same fabrication in the 'N hours after awareness' paraphrase —
+    the specific shape the reviewer's P2-1 claim predicted."""
+    text = "Under DORA, the initial notification must be filed 24 hours after becoming aware of the breach."
+    report = deadline_report(text)
+    assert report["has_fabricated_deadline"] is True
+    assert report["fabricated_count"] == 1
+
+
+def test_dora_4h_initial_notification_passes() -> None:
+    """Positive control: the statutory 4h DORA initial-notification
+    window does not fire the rail."""
+    text = "DORA requires initial notification within 4 hours of classification."
+    report = deadline_report(text)
+    assert report["has_fabricated_deadline"] is False
+
+
+def test_dora_incident_duration_24h_is_not_a_notification_claim() -> None:
+    """Negative control covering the exact confusion the reviewer hit.
+    Art. 9(3)(a) of 2024/1772 says an incident lasting longer than 24h
+    meets the duration-materiality threshold. Describing that threshold
+    in an audit note is not a notification-deadline claim and must not
+    fire the rail — no trigger term in the enclosing sentence.
+    """
+    text = "Under DORA, the incident duration exceeded 24 hours, meeting the materiality threshold."
+    report = deadline_report(text)
+    assert report["has_fabricated_deadline"] is False, (
+        "duration-threshold language must not trigger the notification "
+        "rail — there is no 'notification' / 'report' trigger in the "
+        "sentence"
+    )

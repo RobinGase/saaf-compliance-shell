@@ -14,8 +14,27 @@ Real windows (sources: regulation text):
     NIS2 Art. 23        — 24h early warning, 72h incident
                           notification, 1 month final report
     DORA Art. 19 + RTS  — 4h initial, 72h intermediate, 1 month
-                          final report (Commission Delegated
-                          Regulation (EU) 2024/1772)
+                          final report. The timeframes come from
+                          Article 19 of Regulation (EU) 2022/2554
+                          plus the separate RTS on reporting
+                          timeframes under DORA Art. 20, NOT from
+                          Commission Delegated Regulation (EU)
+                          2024/1772 (which covers classification
+                          criteria and materiality thresholds, not
+                          deadlines — verified against the OJ text
+                          on 2026-04-19 as part of the hardening
+                          wave S5 batch, closing the deferred P2-1
+                          "24h-from-awareness backstop" finding as
+                          reviewer-wrong-about-location).
+
+The 24h number in 2024/1772 Art. 9(3)(a) is a duration-materiality
+threshold for classifying an incident as major (how long the
+incident ran), NOT a notification deadline. A LLM output claiming
+"DORA requires initial notification within 24 hours under
+Regulation 2024/1772" is fabricated and must fire this rail; the
+regression is pinned by
+``test_dora_24h_initial_notification_claim_is_flagged_as_fabricated``
+in tests/test_deadline_check.py.
 
 Approach:
 - Find deadline phrases in several shapes: "within N hours", "in N
