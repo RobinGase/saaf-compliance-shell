@@ -136,7 +136,7 @@ Landed `cab64b3` on `origin/main`. Tag `v0.9.0-s3`.
 
 ## S4 — v0.8.7-deferred bundle  (v0.9.0-s4)
 
-Landed on `main` (pending tag `v0.9.0-s4`). Five sub-batches in
+Landed `a6a77f8` on `main`. Tag `v0.9.0-s4`. Five sub-batches in
 risk-ascending order: mtime cache → NFS log routing → per-session
 NFS port → `setuptools_scm` → config-dir rename.
 
