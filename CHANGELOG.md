@@ -120,6 +120,13 @@ logged in `docs/REVIEW_2026-04-19_hardening.md`. Latest checkpoint:
   updated to match.
 
 ### Added
+- **NAP — control-to-article mapping doc.** New `docs/NAP_MAPPING.md`
+  maps the shell's machine-verifiable controls onto the GDPR / DORA /
+  EU AI Act articles most often cited against them, with a reverse
+  index from each rail refusal code to its primary article. Framed
+  explicitly as an evidence-surface companion to `docs/SECURITY.md`,
+  not a compliance programme substitute (DPIA / ROPA / DPO sign-off
+  are out of scope). Linked from the README docs table.
 - **S3 — rail adversarial paraphrase harness** (`v0.9.0-s3`).
   `tests/harness/rail_paraphrases_baseline.json` fixes expected flag
   state per (rail, paraphrase); `tests/test_rail_paraphrase_harness.py`

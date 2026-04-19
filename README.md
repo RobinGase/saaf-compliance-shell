@@ -128,6 +128,7 @@ Grouped by what you're trying to do.
 | Understand what the shell is and how the pieces fit together | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Bring the shell up on a host and run the smoke test | [`docs/QUICKSTART.md`](docs/QUICKSTART.md) |
 | Know what the shell defends against (and what it does not) | [`docs/SECURITY.md`](docs/SECURITY.md) |
+| Map controls to GDPR / DORA / EU AI Act articles | [`docs/NAP_MAPPING.md`](docs/NAP_MAPPING.md) |
 | See status, next steps, and open decisions | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | Recover from a crash, broken chain, or orphan network state | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) |
 | Read the full technical spec, test matrices, and control mapping | [`docs/implementation_plan.md`](docs/implementation_plan.md) |
