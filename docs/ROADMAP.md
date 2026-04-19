@@ -8,7 +8,7 @@ Where the shell is today, what is next, and what was intentionally deferred.
 |---|---|
 | Manifest validation | Working. 11 tests. |
 | Audit log (hash chain + verify) | Working. 11 tests. |
-| Guardrails HTTP wrapper (`:8088`) | Working. PII masking, injection preflight, topical rail, and 12 output rails (verdict / CoT / citation / absolutism / stale-attestation / jurisdiction / currency / standards-version / CVE / regulator-name / incident-deadline / case-law). |
+| Guardrails HTTP wrapper (`:8088`) | Working. Input-side PII masking, full-history injection preflight, topical preflight, and 12 output rails (verdict / CoT / citation / absolutism / stale-attestation / jurisdiction / currency / standards-version / CVE / regulator-name / incident-deadline / case-law). Output-side Presidio and the Colang topical flow are `pass` stubs — the actual enforcement is at input / service layer; see SECURITY.md §3 and §5. |
 | Privacy Router (`:8089`) | Working. Local-only routing. 6 tests. |
 | Presidio + BSN recognizer | Working. 22 tests. Dutch NLP model wired. |
 | Firecracker VM launcher | Working. Unit-tested + live boot verified on Linux. |
@@ -19,9 +19,33 @@ Where the shell is today, what is next, and what was intentionally deferred.
 
 The modular branch is considered "proven enough to support real testing work." It is not yet considered production-ready.
 
+## Active: v0.9.0 hardening wave
+
+Latest release on `main` is **v0.8.6**. Post-v0.8.6 work is landing as
+`v0.9.0-sN` checkpoint tags driven by the 2026-04-19 review
+(`docs/REVIEW_2026-04-19_hardening.md`). Current head is **v0.9.0-s10**.
+Closed: S1 oversize refusal, S2 session lock, S3 rail paraphrase
+harness, S4 v0.8.7-deferred bundle (five sub-batches including
+`guardrails_config/` rename and ephemeral NFS port), S5 DORA citation
+verify, S6 RT-04 / RT-09 / RT-10 quick wins, S7 audit head-pointer
+sidecar (RT-02 + RT-03), S8 PII-digest refusal audits + full-history
+preflight (RT-05 + RT-08), S10 shared-host iptables safety + SECURITY.md
+alignment (RT-06 + RT-07). S9 (RT-01 router boundary tightening) is
+reserved pending a threat-model decision. S11 (CycloneDX SBOM + cosign
+keyless signing) is scoped but not started.
+
 ## What is next (short term)
 
-1. **Red-team coverage completion.** `saaf-shell test --suite red-team` passes the initial seed set. The full attack matrix from [`SECURITY.md`](SECURITY.md) needs to be translated into automated cases and run on every push.
+1. **S9 — router boundary (RT-01).** Decide how tightly the router
+   guarantees locality against a manifest-supplied URL, and whether the
+   `LOCAL_NIM_URL` allowlist becomes configuration or code. Blocked on
+   a threat-model call.
+2. **S11 — SBOM + signed releases.** CycloneDX SBOM generated from
+   `requirements.lock` and attached to each tag; cosign keyless signing
+   via GitHub Actions OIDC (`id-token: write`). Three design questions
+   open (signing identity, attestation format, verifier UX) — scoped
+   but not started.
+3. **Red-team coverage completion.** `saaf-shell test --suite red-team` passes the initial seed set. The full attack matrix from [`SECURITY.md`](SECURITY.md) needs to be translated into automated cases and run on every push.
 2. **Kernel cmdline hardening.** Manifest `agent.env` values are only space-escaped when building Firecracker boot args. Newline / quote validation is still open — see `SECURITY_AUDIT.md` finding 1.
 3. **HTTPS default for the rootfs builder.** `scripts/build-rootfs.sh` defaults to `http://archive.ubuntu.com`. Package signing still protects integrity, but flipping the default to HTTPS removes the MITM metadata concern.
 4. **Dependency lock + `pip-audit` in CI.** `pyproject.toml` only pins lower bounds. CI should fail on known advisories.

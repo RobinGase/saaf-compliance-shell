@@ -11,44 +11,112 @@ curated narrative. For full commit detail per release, run
 
 ## [Unreleased]
 
+Hardening wave toward v0.9.0. Each batch is tagged `v0.9.0-sN` and
+logged in `docs/REVIEW_2026-04-19_hardening.md`. Latest checkpoint:
+`v0.9.0-s10`.
+
 ### Security
-- **S1 — oversized-input safe refusal** (hardening wave batch 1, tag
-  `v0.9.0-s1`). `modules/guardrails/service.py` no longer proxies
-  oversized payloads to the main model with output-rescan as the only
-  check; a request exceeding `MAX_GUARDRAILS_PAYLOAD_CHARS` is refused
-  with HTTP 413 and `detail = "payload_too_large_refused"`, and an
-  `oversize_refused` event (`payload_chars`, `threshold_chars`,
-  `model`) lands in the hash-chained audit log. Output rail rescanning
-  remains on the salvage-from-error and empty-rails bypass paths where
-  it is the right tool; on the oversize path it was additional defence,
-  not substitute enforcement. Three defect-encoding tests were
-  rewritten: they asserted a 200 with proxied content on oversized
-  input, which was the bypass this change closes. See
-  `docs/REVIEW_2026-04-19_hardening.md` for the full batch log.
-- **S2 — host-wide session lock** (hardening wave batch 2, tag
-  `v0.9.0-s2`). New `modules/isolation/session_lock.py` wraps
-  `run_manifest` in a non-blocking `fcntl.flock(LOCK_EX | LOCK_NB)` on
-  `/var/run/saaf-shell/session.lock` (path configurable). Two
-  concurrent sessions on the same host used to race on the shared NFS
-  port, iptables rules, and `ip_forward` gate; the second caller now
-  fails fast with `SessionLockHeld` carrying the live holder's PID.
-  Lock is held on the file descriptor so the kernel auto-releases it
-  on crash (including SIGKILL / OOM) — crash-safe recovery with no
-  cleanup script. Every acquire, release, and contended attempt emits
-  a chained audit event. Windows path is a no-op (Firecracker is
-  Linux-only).
+- **S1 — oversized-input safe refusal** (`v0.9.0-s1`).
+  `modules/guardrails/service.py` no longer proxies oversized payloads
+  to the main model with output-rescan as the only check; a request
+  exceeding `MAX_GUARDRAILS_PAYLOAD_CHARS` is refused with HTTP 413 and
+  `detail = "payload_too_large_refused"`, and an `oversize_refused`
+  event lands in the hash-chained audit log. Three defect-encoding
+  tests were rewritten: they asserted a 200 with proxied content on
+  oversized input, which was the bypass this change closes.
+- **S2 — host-wide session lock** (`v0.9.0-s2`). New
+  `modules/isolation/session_lock.py` wraps `run_manifest` in a
+  non-blocking `fcntl.flock(LOCK_EX | LOCK_NB)` on
+  `/var/run/saaf-shell/session.lock`. Two concurrent sessions on the
+  same host used to race on the shared NFS port, iptables rules, and
+  `ip_forward` gate; the second caller now fails fast with
+  `SessionLockHeld` carrying the live holder's PID. Lock is held on the
+  file descriptor so the kernel auto-releases it on crash — no cleanup
+  script. Windows path is a no-op.
+- **S5 — DORA notification-deadline citation verified** (`v0.9.0-s5`).
+  P2-1 (Commission Delegated Regulation (EU) 2024/1772 24h backstop)
+  dismissed after OJ read: 2024/1772 Art. 5 is a classification criterion
+  for data losses, not a notification deadline. DORA reporting windows
+  (4h / 72h / 1 month) sit in Regulation (EU) 2022/2554 Art. 19 + the
+  RTS under Art. 20; the rail table is correct. Wrong citation in
+  `deadline_rule.py` docstring fixed; 4 regression tests pin the
+  confusion.
+- **S6 — red-team quick wins** (`v0.9.0-s6`).
+  *RT-04*: manifest `name` is now shell-metachar-checked before being
+  interpolated into the kernel `ip=...:<name>:eth0:off` cmdline segment
+  (hostname must not contain whitespace; `_check_boot_arg` given a
+  `forbid_space=True` mode). *RT-09*: `session_id` no longer bleeds
+  across session boundaries — `_read_chain_tail` now clears it on
+  `session_end` so a post-close `route_decision` is no longer
+  mis-attributed to the just-closed session. *RT-10*: systemd units
+  gained `LogsDirectory=openshell` + `LogsDirectoryMode=0750` so the
+  sandboxed writer can reach the default `/var/log/openshell/audit.jsonl`
+  path.
+- **S7 — audit integrity: head-pointer sidecar** (`v0.9.0-s7`).
+  *RT-02* (rollback / suffix deletion) and *RT-03* (crash-heal
+  tamper-erasure) both stayed green under `verify_log` because the log
+  was self-describing. Head-pointer sidecar at `<log>.head`, atomic
+  `os.replace` under the existing `fcntl` lock, carries
+  `{last_seq, last_event_hash, event_count, ts}`. `verify_log`
+  cross-checks tail against sidecar; `append_chained_event` classifies
+  the tail state (`clean` / `first_write` / `legacy` / `heal_legit` /
+  `tamper`). Legit heal emits a chained `audit_tail_healed` record;
+  tamper raises `AuditTamperDetected` unless `SAAF_ACK_AUDIT_HEAL=1`
+  (ack emits `audit_tail_heal_acknowledged`). Sidecar is not
+  cryptographic — its value is catching accidental truncation and
+  giving operators one small file to mirror externally for a real
+  anchor. Signed sidecar deferred.
+- **S8 — PII-digest refusal audit + full-history preflight**
+  (`v0.9.0-s8`). *RT-05*: `guardrails_config/actions/self_check_direct.py`
+  no longer emits the raw refused prompt / completion on the audit
+  side; `_digest_for_audit` replaces the content with
+  `{content_sha256, content_len}` on both input and output refusal
+  paths. Refusal events are now investigator-useful without becoming a
+  secondary PII store. *RT-08*: `modules/guardrails/service.py`
+  preflight now scans every message in the request (every role,
+  first-match-wins) via `_preflight_scan_messages`; the prior
+  last-message-only scan let a jailbreak land in `messages[0]` and
+  slip through. Audit event carries `message_index` + `message_role`
+  for the match.
+- **S10 — iptables `-I` on filter chains + doc alignment**
+  (`v0.9.0-s10`). *RT-06*: `modules/isolation/network.py` switched all
+  filter-table rules in `build_setup_commands` from `-A <chain>` to
+  `-I <chain> N` with explicit contiguous positions 1..N. On a shared
+  host with Tailscale / Docker / libvirt, appending SAAF's DROP after
+  their pre-existing ACCEPT was defeatable under
+  `SAAF_ALLOW_IP_FORWARD=1`; inserting at the top of each filter chain
+  keeps the SAAF block authoritative. NAT `PREROUTING` stays `-A`
+  (scoped by `-i <tap>`; can't be shadowed). *RT-07*:
+  `docs/SECURITY.md` §3 and §5 rewritten to stop overclaiming — the
+  output-side Presidio call is a `pass` stub (input-side masking + the
+  new S8 digest on refusal are the actual PII controls), and the Colang
+  topical flow is a `pass` stub (the enforcement path is the
+  service-layer preflight). GDPR Art. 25 row in the Controls mapping
+  updated to match.
 
 ### Added
-- **S3 — rail adversarial paraphrase harness** (hardening wave batch
-  3, tag `v0.9.0-s3`). `tests/harness/rail_paraphrases_baseline.json`
-  fixes expected flag state per (rail, paraphrase); `tests/test_rail_paraphrase_harness.py`
-  asserts the current behavior against that baseline across all 12
-  rails (32 paraphrases — mix of positives and negatives). A
-  coverage-gate test refuses the suite if a new rail is added to
-  `_RAILS` without a baseline entry. Drift detector sitting alongside
-  the per-rail unit tests: a refactor that silently changes rail
-  behavior makes the harness fail even if the rail's own tests still
-  pass. Runs in the existing pytest CI job.
+- **S3 — rail adversarial paraphrase harness** (`v0.9.0-s3`).
+  `tests/harness/rail_paraphrases_baseline.json` fixes expected flag
+  state per (rail, paraphrase); `tests/test_rail_paraphrase_harness.py`
+  asserts the current behaviour against that baseline across all 12
+  rails (32 paraphrases). A coverage-gate test refuses the suite if a
+  new rail is added to `_RAILS` without a baseline entry. Drift
+  detector alongside the per-rail unit tests.
+- **S4 — v0.8.7-deferred bundle** (`v0.9.0-s4`, five sub-batches):
+  (S4.1) `_build_rails` cache keyed on config-dir max mtime so
+  Colang/YAML edits invalidate on next request; (S4.2) NFS server log
+  routing — `start_nfs_server` gets optional `log_path`; runtime writes
+  `<session>.nfs.log` so guest-side mount failures surface; (S4.3)
+  per-session ephemeral NFS port — `DEFAULT_NFS_PORT=11111` gone,
+  `runtime._pick_free_nfs_port` picks inside `acquire_session_lock`,
+  `nfs_port_selected` audit event lands in the chain; (S4.4)
+  `setuptools_scm` migration — `pyproject.toml` carries dynamic
+  version, `tag_regex` accepts the `vX.Y.Z-sN` wave suffix,
+  `modules/_version.py` gitignored; (S4.5) `guardrails/` →
+  `guardrails_config/` rename so the config dir no longer shadows
+  `nemoguardrails`' `import guardrails` in `main.co`; the
+  `_CWD_CHDIR_LOCK` + `os.chdir(tempfile.gettempdir())` workaround from
+  v0.8.5 is removed.
 
 ### Changed
 - CLI output now flows through the `logging` module (logger name
@@ -69,18 +137,21 @@ curated narrative. For full commit detail per release, run
   rule, gateway host + `GUARDRAILS_PORT`) that previously lived behind a
   separate `validate_v1_network_rules` call. Runtime still re-checks as
   belt-and-suspenders. (M1)
-
-### Added
 - Manifest validator rejects shell-metachar injection in `agent.entrypoint`,
   `agent.working_directory`, and `agent.env` keys / values via a single
   allowlist regex (`_BOOT_ARG_SAFE_RE`) before the Firecracker layer ever
   sees the value. Complements `firecracker._encode_boot_value`. (H1)
-- `VALID_PII_ENTITIES` carries a Presidio docs pointer comment so
-  maintainers know where to check when extending the set. (M2)
+- `requirements.lock` bumped `langchain-openai` ≥ 1.1.14
+  (GHSA-r7w7-9xr2-qq2r) and `langchain-text-splitters` ≥ 1.1.2
+  (GHSA-fv5p-p927-qmxr); `langchain-core` follows to 1.3.0 to satisfy
+  both. `pip-audit --strict` CI gate now passes.
 
 ### Documentation
 - `pyproject.toml` carries a `TODO(v0.9)` note above the Python version
   cap (`>=3.11,<3.14`) so the next release bump is an explicit decision. (M5)
+- `VALID_PII_ENTITIES` carries a Presidio docs pointer comment. (M2)
+- `docs/SECURITY.md` §3, §4, §5 and the Controls mapping brought into
+  alignment with the actual enforcement paths (S8 + S10 above).
 
 ## [0.8.6] — 2026-04-18
 

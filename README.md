@@ -4,7 +4,7 @@ A runtime enforcement layer for AI agent workloads that need a controlled execut
 
 ## What this is
 
-A Linux-host shell that boots an AI workload inside a Firecracker microVM, tracks every filesystem change through an AgentFS overlay, gates model traffic through NeMo Guardrails (PII redaction, injection preflight, topical rail, and twelve output rails that refuse audit-specific hallucinations: fabricated citations, wrong-currency fines, unfounded verdicts, chain-of-thought leakage, stale attestations, absolutist claims, jurisdiction mismatches, fabricated standards versions, fabricated CVEs, fabricated regulator names, fabricated incident-notification deadlines, fabricated case-law / enforcement-action IDs), routes inference through a local-only privacy router, and writes a SHA-256 hash-chained audit log. The workload declares what it needs in `saaf-manifest.yaml`; anything not declared is denied. One host, one VM per session, no cloud dependencies.
+A Linux-host shell that boots an AI workload inside a Firecracker microVM, tracks every filesystem change through an AgentFS overlay, gates model traffic through NeMo Guardrails (input-side PII redaction, full-history prompt-injection preflight, topical preflight, and twelve output rails that refuse audit-specific hallucinations: fabricated citations, wrong-currency fines, unfounded verdicts, chain-of-thought leakage, stale attestations, absolutist claims, jurisdiction mismatches, fabricated standards versions, fabricated CVEs, fabricated regulator names, fabricated incident-notification deadlines, fabricated case-law / enforcement-action IDs), routes inference through a local-only privacy router, and writes a SHA-256 hash-chained audit log anchored by an external head-pointer sidecar. The workload declares what it needs in `saaf-manifest.yaml`; anything not declared is denied. One host, one VM per session, no cloud dependencies.
 
 ## What this is not
 
@@ -76,7 +76,7 @@ saaf-shell diff --agent-id <session-id>
 
 ### 3. Guardrails service: `modules/guardrails/` (HTTP on `:8088`)
 
-The guarded channel the workload talks to instead of the model. Request flow: PII redaction (Presidio + Dutch BSN) → prompt-injection preflight → topical rail → forward to Privacy Router → response re-runs PII redaction plus the twelve output rails listed in [SECURITY.md §9](docs/SECURITY.md#9-unsafe-claim-shapes-in-model-output).
+The guarded channel the workload talks to instead of the model. Request flow: input-side PII redaction (Presidio + Dutch BSN) → prompt-injection preflight (scans every message, every role) → topical preflight → forward to Privacy Router → response runs the twelve output rails listed in [SECURITY.md §9](docs/SECURITY.md#9-unsafe-claim-shapes-in-model-output). Refusal events on the audit side carry a SHA-256 content digest rather than the raw prompt or completion. The output-side Presidio hook and the Colang topical flow are documented `pass` stubs today — the actual enforcement paths are the input-side mask and the service-layer preflight; see [SECURITY.md §3 and §5](docs/SECURITY.md).
 
 ```bash
 python -m modules.guardrails.service --config-path guardrails_config/
@@ -158,7 +158,21 @@ Grouped by what you're trying to do.
 
 ## Current status
 
-Latest release: **v0.8.4**. Twelve output rails, CI-gated branch policy, reproducible release tarball on `dev/main`. The v0.8.x line closed the bypass paths surfaced by successive independent reviews and tightened the output rails against adversarial paraphrases: the salvage path (content recovered from LLM-adapter error strings) runs the Python output rails before returning; guest isolation extends to IPv6 via `disable_ipv6` on the tap, mirrored ip6tables DROP rules, and a startup gate that refuses to run when either `net.ipv4.ip_forward` or `net.ipv6.conf.all.forwarding` is enabled; `self_check_input`/`self_check_output` refusals join the hash chain as `guardrails_rail_fire` events. v0.8.2 added the eleventh output rail (incident-notification-deadline) covering statutory reporting windows for GDPR Art. 33 (72h), NIS2 Art. 23 (24h / 72h / 1mo) and DORA Art. 19 + RTS (4h / 72h / 1mo). v0.8.3 wired the deadline rail into `output_scan._RAILS` (previously only wired in Colang, so bypass paths skipped it), added a trigger-term guard so the rule fires only when notification/reporting language is present, added multi-framework attribution walking preceding aliases, made AVG case-sensitive to stop English "avg" shorthand from anchoring the rail, and pinned the 11-rail registry with a regression test. v0.8.4 adds the twelfth rail — fabricated case-law / enforcement-action IDs (CJEU `[CTF]-NNN/YY` post-1989 scheme, CNIL `SAN-YYYY-NNN` post-2000, and malformed-separator variants that fire only with explicit CJEU / Court-of-Justice / General Court context within 120 chars). The end-to-end path is working: Firecracker + AgentFS + Guardrails + Router + audit log run on a single Linux host, and Vendor_Guard produces real scorecard, gap register, and audit memo artefacts through the VM path. The modular branch is proven enough to support real testing work; it is not yet production-ready. Tracked next steps and open decisions live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Latest release: **v0.8.6** (2026-04-18). Active work is the post-v0.8.6 hardening wave toward v0.9.0; the most recent checkpoint tag is **v0.9.0-s10** (2026-04-19). Each batch in the wave is published as a `v0.9.0-sN` pre-release tag and logged in [`docs/REVIEW_2026-04-19_hardening.md`](docs/REVIEW_2026-04-19_hardening.md). Twelve output rails, CI-gated branch policy, reproducible release tarball on `dev/main`, and `pip-audit --strict` green on the current lock.
+
+Highlights of the hardening wave so far:
+
+- **S1** oversized-input safe refusal (HTTP 413 + `oversize_refused` audit event instead of proxy-with-output-rescan).
+- **S2** host-wide non-blocking session lock (`/var/run/saaf-shell/session.lock`); crash-safe via kernel fd release.
+- **S3** 12-rail adversarial paraphrase harness with a coverage gate.
+- **S4** `_build_rails` mtime cache; NFS server log routing; per-session ephemeral NFS port; `setuptools_scm` migration; `guardrails/` → `guardrails_config/` rename removing the v0.8.5 CWD-chdir workaround.
+- **S5** DORA notification-deadline citation verified against the OJ — 2024/1772 dismissed; 2022/2554 Art. 19 + RTS is the source of truth; 4 regression tests pin the confusion.
+- **S6** red-team quick wins — manifest-`name` kernel-cmdline injection closed (RT-04); `session_id` bleed on `session_end` fixed (RT-09); systemd `LogsDirectory=openshell` so the sandboxed writer can reach `/var/log/openshell/` (RT-10).
+- **S7** audit integrity — head-pointer sidecar at `<log>.head` (atomic `os.replace` under `fcntl`), tail classification (`clean` / `first_write` / `legacy` / `heal_legit` / `tamper`), `AuditTamperDetected` with `SAAF_ACK_AUDIT_HEAL=1` escape valve (closes RT-02 rollback and RT-03 heal-erasure).
+- **S8** PII-safe refusal audits — `self_check_direct` emits `{content_sha256, content_len}` instead of the raw prompt or completion (RT-05); full-message-history preflight scans every role, first-match-wins (RT-08).
+- **S10** shared-host iptables safety — filter-table rules switched from `-A` to `-I <chain> N` with explicit contiguous positions so Tailscale / Docker / libvirt ACCEPTs can't shadow SAAF's DROP (RT-06); NAT `PREROUTING` stays `-A` (scoped by `-i <tap>`). `docs/SECURITY.md` §3, §5, and the Controls mapping aligned to the actual enforcement paths (RT-07).
+
+The end-to-end path is working: Firecracker + AgentFS + Guardrails + Router + audit log run on a single Linux host, and Vendor_Guard produces real scorecard, gap register, and audit memo artefacts through the VM path. The modular branch is proven enough to support real testing work; it is not yet production-ready. Tracked next steps and open decisions live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Development workflow
 
