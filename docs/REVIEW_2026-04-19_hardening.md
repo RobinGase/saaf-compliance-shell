@@ -234,7 +234,7 @@ NFS port → `setuptools_scm` → config-dir rename.
 
 ## S5 — DORA OJ-verification backstop  (v0.9.0-s5)
 
-Landed on `main` (pending tag `v0.9.0-s5`).
+Landed on `main` as `fe7d2be`, tagged `v0.9.0-s5`.
 
 - **Deferred finding under verification (P2-1 from v0.8.3 review):**
   reviewer claimed Commission Delegated Regulation (EU) 2024/1772
