@@ -15,7 +15,7 @@ local baseline.
 
 ## S1 — oversized-input safe refusal  (v0.9.0-s1)
 
-Landed `<sha-placeholder>` on `origin/main`. Tag `v0.9.0-s1`.
+Landed `50d5786` on `origin/main`. Tag `v0.9.0-s1`.
 
 - Finding as stated (GPT-5.4): `MAX_GUARDRAILS_PAYLOAD_CHARS` allowed
   oversized input to skip `LLMRails` entirely; v0.8.0 added output
