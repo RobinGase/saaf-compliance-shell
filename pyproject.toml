@@ -1,10 +1,12 @@
 [project]
 name = "saaf-compliance-shell"
-# Keep in lockstep with the git tag. `scripts/make-release-tarball.sh`
-# cross-checks this against `git describe --tags --abbrev=0` and refuses
-# to build on mismatch. TODO(v0.9): drive from setuptools_scm once the
-# release-tarball path is updated to carry a generated `_version.py`.
-version = "0.8.7"
+# Version is derived from the latest git tag via ``setuptools_scm``;
+# see the ``[tool.setuptools_scm]`` section at the bottom of this file.
+# The tag is the authoritative source — no pyproject string to drift
+# against it. A generated ``modules/_version.py`` carries the resolved
+# version for runtime introspection and for sdist builds without a
+# reachable git checkout.
+dynamic = ["version"]
 description = "Modular compliance wrapper for AI agent workloads"
 readme = "README.md"
 license = "Apache-2.0"
@@ -72,11 +74,28 @@ check_untyped_defs = true
 py-modules = ["cli"]
 
 [tool.setuptools.packages.find]
-include = ["modules*", "guardrails*"]
+include = ["modules*", "guardrails_config*"]
 
 [tool.setuptools.package-data]
-guardrails = ["*.co", "*.yml"]
+guardrails_config = ["*.co", "*.yml"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# Resolved version lands in a generated ``modules/_version.py`` (gitignored)
+# so ``python -c "from modules._version import __version__"`` always works.
+# ``fallback_version`` only kicks in when neither a git checkout nor
+# ``SETUPTOOLS_SCM_PRETEND_VERSION`` are available (e.g. tarball installs
+# on hosts without git metadata); it's intentionally a ``+unknown`` local
+# segment so the drift is obvious in logs.
+#
+# ``tag_regex`` accepts both plain release tags (``v0.9.0``) and the
+# hardening-wave checkpoint tags (``v0.9.0-s1`` through ``v0.9.0-s7``)
+# and normalizes them to the core ``MAJOR.MINOR.PATCH`` so PEP 440 is
+# happy. Commits past the most recent checkpoint get a
+# ``0.9.0.devN+g<short>`` dev version automatically.
+write_to = "modules/_version.py"
+fallback_version = "0.0.0+unknown"
+tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+)(?:-s\\d+)?$"

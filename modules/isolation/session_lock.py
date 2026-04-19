@@ -1,12 +1,13 @@
 """Host-wide single-session lock (S2 / v0.9.0-s2).
 
 Firecracker requires cross-session host resources that do not serialize
-themselves: a single NFS port (``DEFAULT_NFS_PORT``) bound by the
-AgentFS server, iptables INPUT/FORWARD rules against the host gateway,
-and the ip_forward gate. Two concurrent ``run_manifest`` invocations on
-the same host would race on those, and the second session would either
-fail halfway through setup (port already bound) or silently share the
-first session's firewall posture.
+themselves: the NFS port bound by the AgentFS server (picked per-session
+under H3), iptables INPUT/FORWARD rules against the host gateway, and
+the ip_forward gate. Two concurrent ``run_manifest`` invocations on the
+same host would race on those, and the second session would either fail
+halfway through setup (iptables chain mutation interleaved with the
+first session's teardown) or silently share the first session's
+firewall posture.
 
 The cure is a host-wide advisory lock held for the entire lifetime of a
 session. We use ``fcntl.flock(LOCK_EX | LOCK_NB)`` on

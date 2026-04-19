@@ -58,7 +58,7 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 ### 9. Unsafe claim shapes in model output
 
-Twelve output rails target failure modes specific to audit-assistant agents. Each raises the floor on what a generalist LLM will let through; none replaces qualified human review. Regex-level detection lives in `modules/guardrails/*_rule.py` (CI-runnable without nemoguardrails); `@action` wrappers in `guardrails/actions/*.py` register the rails with Colang 2.0 flows in `guardrails/rails.co`.
+Twelve output rails target failure modes specific to audit-assistant agents. Each raises the floor on what a generalist LLM will let through; none replaces qualified human review. Regex-level detection lives in `modules/guardrails/*_rule.py` (CI-runnable without nemoguardrails); `@action` wrappers in `guardrails_config/actions/*.py` register the rails with Colang 2.0 flows in `guardrails_config/rails.co`.
 
 | Rail | Targets | Refuses when |
 |---|---|---|

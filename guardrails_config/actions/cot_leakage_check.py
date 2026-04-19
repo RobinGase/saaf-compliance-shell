@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from nemoguardrails.actions import action
 
-from modules.guardrails.cot_leakage_rule import cot_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
+from modules.guardrails.cot_leakage_rule import cot_report
 
 
 @action(name="CoTLeakageCheckAction", execute_async=True)

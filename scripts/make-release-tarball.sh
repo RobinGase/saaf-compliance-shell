@@ -27,22 +27,12 @@ SHORT_SHA="$(git rev-parse --short HEAD)"
 OUT="${1:-dist/saaf-compliance-shell-${SHORT_SHA}.tar.gz}"
 mkdir -p "$(dirname "${OUT}")"
 
-# Cross-check pyproject.toml version against the latest tag reachable
-# from HEAD. Compliance tooling where the shipped version disagrees
-# with the git-tag story is a credibility hit — fail the build rather
-# than ship a tarball whose metadata lies about its provenance.
-PYPROJECT_VERSION="$(awk -F '"' '/^version *= *"/ { print $2; exit }' pyproject.toml)"
-LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo "")"
-if [ -z "${LATEST_TAG}" ]; then
-    echo "WARN: no git tag reachable from HEAD; skipping version cross-check." >&2
-else
-    EXPECTED="${LATEST_TAG#v}"
-    if [ "${PYPROJECT_VERSION}" != "${EXPECTED}" ]; then
-        echo "FATAL: pyproject.toml version (${PYPROJECT_VERSION}) does not match latest tag (${LATEST_TAG})." >&2
-        echo "       Bump pyproject.toml to ${EXPECTED} or move the tag, then re-run." >&2
-        exit 1
-    fi
-fi
+# Version is derived from git via ``setuptools_scm`` (see pyproject.toml);
+# pyproject no longer carries a static version string to drift against,
+# so the pre-S4 cross-check is structurally unnecessary. We still surface
+# the resolved tag as release-tarball metadata so operators have a single
+# string to quote in deploy tickets.
+LATEST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || echo "<untagged>")"
 
 # Fixed mtime from the HEAD commit — makes the tarball reproducible across
 # machines without depending on checkout time.
@@ -72,5 +62,6 @@ SHA="$(sha256sum "${OUT}" | awk '{print $1}')"
 echo ""
 echo "Release tarball: ${OUT}"
 echo "  commit: $(git rev-parse HEAD)"
+echo "  tag:    ${LATEST_TAG}"
 echo "  size:   ${SIZE} bytes"
 echo "  sha256: ${SHA}"

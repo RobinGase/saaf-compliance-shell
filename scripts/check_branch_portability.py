@@ -20,7 +20,7 @@ FORBIDDEN_STRINGS = (
 TARGET_PATHS = (
     "README.md",
     "cli.py",
-    "guardrails/config.yml",
+    "guardrails_config/config.yml",
     "docs/implementation_plan.md",
     "modules/isolation/agentfs.py",
     "modules/isolation/firecracker.py",

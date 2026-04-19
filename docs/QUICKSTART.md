@@ -45,7 +45,7 @@ These two run on the host, outside any VM. Run them in separate terminals or und
 
 ```bash
 # Guardrails HTTP service on :8088
-python -m modules.guardrails.service --config-path guardrails/
+python -m modules.guardrails.service --config-path guardrails_config/
 
 # Privacy Router on :8089
 python -m modules.router.privacy_router

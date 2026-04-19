@@ -121,7 +121,7 @@ No masquerade rule is installed; there is no route to the internet. `validate_v1
 
 HTTP wrapper around NeMo Guardrails with an OpenAI-compatible surface so the workload calls it like a model. Request lifecycle:
 
-1. **Input preflight** (`service.py`) — cheap substring match against `preflight_injection_patterns` / `preflight_off_topic_patterns` loaded from `guardrails/config.yml` (falls back to the in-module `DEFAULT_*` tuples if the config block is absent). Obvious direct injection is rejected before the rail pipeline runs. This is a **tripwire, not a filter** — it can be bypassed with whitespace tweaks, paraphrases, or homoglyphs, and the real enforcement is the Colang `self_check_input` rail that runs an LLM classifier over the full message. Every preflight hit writes a `guardrails_preflight_block` audit event whose `category` (`injection` / `off_topic`) and `pattern` fields name what the tripwire caught (see `SECURITY_AUDIT.md` finding 2).
+1. **Input preflight** (`service.py`) — cheap substring match against `preflight_injection_patterns` / `preflight_off_topic_patterns` loaded from `guardrails_config/config.yml` (falls back to the in-module `DEFAULT_*` tuples if the config block is absent). Obvious direct injection is rejected before the rail pipeline runs. This is a **tripwire, not a filter** — it can be bypassed with whitespace tweaks, paraphrases, or homoglyphs, and the real enforcement is the Colang `self_check_input` rail that runs an LLM classifier over the full message. Every preflight hit writes a `guardrails_preflight_block` audit event whose `category` (`injection` / `off_topic`) and `pattern` fields name what the tripwire caught (see `SECURITY_AUDIT.md` finding 2).
 2. **Input rails** (`rails.co`) — Presidio PII redaction (stable placeholders, destructive), `SelfCheckInputDirectAction`, `check topical relevance`.
 3. **Forward** to Privacy Router on `:8089`.
 4. **Output rails** — PII redaction on the response, then ten regex-based output rails in order: `check cot leakage`, `check citation validity`, `check verdict evidence`, `check absolutist language`, `check stale attestations`, `check jurisdiction scope`, `check currency scope`, `check standards version`, `check cve validity`, `check regulator validity`.
@@ -129,9 +129,9 @@ HTTP wrapper around NeMo Guardrails with an OpenAI-compatible surface so the wor
 Each output rail splits into two files:
 
 - `modules/guardrails/<rail>_rule.py` — pure-Python detection logic. No nemoguardrails import. Runs in CI on Windows, on the Linux host, anywhere Python 3.11+ runs. Returns a `dict` shaped `{has_<something>: bool, count: int, samples: list[str]}`.
-- `guardrails/actions/<rail>_check.py` — 10-line `@action` wrapper that calls the rule and returns the dict. Registered with Colang via `nemoguardrails.actions.action`.
+- `guardrails_config/actions/<rail>_check.py` — 10-line `@action` wrapper that calls the rule and returns the dict. Registered with Colang via `nemoguardrails.actions.action`.
 
-The Colang flow in `guardrails/rails.co` calls the action, inspects the returned dict, and either passes through or emits a refusal. If any rail fires, the workload receives the refusal text — never the offending response. Matching is regex-based and narrow by design; hedged audit language is not flagged (full rail-by-rail refuse conditions: [`SECURITY.md`](SECURITY.md) §9).
+The Colang flow in `guardrails_config/rails.co` calls the action, inspects the returned dict, and either passes through or emits a refusal. If any rail fires, the workload receives the refusal text — never the offending response. Matching is regex-based and narrow by design; hedged audit language is not flagged (full rail-by-rail refuse conditions: [`SECURITY.md`](SECURITY.md) §9).
 
 The Guardrails self-check LLM call bypasses the router and goes directly to `:8000`. Self-check prompts contain no user data, so the privacy hop is not needed there. This asymmetry is deliberate — the router's own self-check validation would otherwise create a circular dependency.
 
@@ -155,7 +155,7 @@ Event types currently written to the chain:
 - `vm_exit` — Firecracker exited cleanly; written by `runtime.py` before teardown.
 - `route_decision` — privacy router appends one per forwarded request via `append_chained_event`.
 - `guardrails_preflight_block` — the service's regex preflight rejected a request (injection / off-topic).
-- `guardrails_rail_fire` — an output rail matched. Written from three places: the Colang-driven action wrappers in `guardrails/actions/*.py` (source `colang_flow`, rails include the ten Python rails plus `self_check_input_refusal` / `self_check_output_refusal` from the NeMo self-check rails) and the service's bypass paths (source `oversized_bypass` / `empty_rail_bypass` / `salvage_bypass`).
+- `guardrails_rail_fire` — an output rail matched. Written from three places: the Colang-driven action wrappers in `guardrails_config/actions/*.py` (source `colang_flow`, rails include the ten Python rails plus `self_check_input_refusal` / `self_check_output_refusal` from the NeMo self-check rails) and the service's bypass paths (source `oversized_bypass` / `empty_rail_bypass` / `salvage_bypass`).
 - `guardrails_bypass_scan` — a bypass path proxied to the main model; the output-rail scan ran and nothing fired.
 - `guardrails_bypass_refusal` — a bypass path proxied to the main model, a rail fired, and the response was replaced with a refusal.
 

@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from nemoguardrails.actions import action
 
-from modules.guardrails.jurisdiction_rule import jurisdiction_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
+from modules.guardrails.jurisdiction_rule import jurisdiction_report
 
 
 @action(name="JurisdictionCheckAction", execute_async=True)

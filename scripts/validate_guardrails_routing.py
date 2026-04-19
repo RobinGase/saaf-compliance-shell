@@ -10,7 +10,7 @@ from modules.guardrails.routing_check import run_guardrails_routing_validation
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config-dir", default="guardrails")
+    parser.add_argument("--config-dir", default="guardrails_config")
     parser.add_argument("--router-port", type=int, default=18089)
     parser.add_argument("--direct-port", type=int, default=18000)
     args = parser.parse_args()

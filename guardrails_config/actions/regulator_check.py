@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from nemoguardrails.actions import action
 
-from modules.guardrails.regulator_rule import regulator_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
+from modules.guardrails.regulator_rule import regulator_report
 
 
 @action(name="RegulatorCheckAction", execute_async=True)

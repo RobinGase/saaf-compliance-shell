@@ -251,6 +251,70 @@ models:
     ]
 
 
+def test_get_rails_rebuilds_when_config_file_edited(monkeypatch, tmp_path: Path) -> None:
+    """Editing any file under the config dir must bust the ``_build_rails``
+    cache on the next ``get_rails`` call. Before the mtime key, an edit to a
+    Colang flow or ``config.yml`` between requests was invisible until the
+    service was restarted."""
+    source = tmp_path / "guardrails"
+    source.mkdir()
+    config_file = source / "config.yml"
+    config_file.write_text(
+        """
+colang_version: "2.x"
+models:
+  - type: main
+    engine: openai
+    model: test-main
+    parameters:
+      base_url: http://127.0.0.1:8089/v1
+  - type: self_check
+    engine: openai
+    model: test-self
+    parameters:
+      base_url: http://127.0.0.1:8000/v1
+""".strip(),
+        encoding="utf-8",
+    )
+
+    build_count = {"n": 0}
+
+    class FakeRailsConfig:
+        @classmethod
+        def from_path(cls, path):
+            import yaml
+
+            data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+            model_objs = [type("Model", (), model)() for model in data["models"]]
+            return type("Cfg", (), {"models": model_objs, "model_copy": lambda self, update: type("Cfg", (), {**self.__dict__, **update})()})()
+
+    class FakeLLMRails:
+        def __init__(self, cfg):
+            build_count["n"] += 1
+
+    monkeypatch.setattr("modules.guardrails.service.LLMRails", FakeLLMRails, raising=False)
+    monkeypatch.setattr("modules.guardrails.service.RailsConfig", FakeRailsConfig, raising=False)
+
+    from modules.guardrails.service import _build_rails, get_rails
+
+    _build_rails.cache_clear()
+
+    get_rails(str(source))
+    get_rails(str(source))
+    assert build_count["n"] == 1  # second call is a cache hit
+
+    # Bump mtime by rewriting the same content one second later — some
+    # filesystems (FAT, older ext) have 1-2s mtime granularity, so adding
+    # an os.utime on a later timestamp is the portable way to force an edit.
+    import os as _os
+
+    future = config_file.stat().st_mtime + 10
+    _os.utime(config_file, (future, future))
+
+    get_rails(str(source))
+    assert build_count["n"] == 2  # edit busts the cache
+
+
 def test_chat_completions_blocks_obvious_prompt_injection(tmp_path: Path) -> None:
     app = create_app(config_path=tmp_path / "guardrails")
     client = TestClient(app)

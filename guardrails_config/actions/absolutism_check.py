@@ -10,7 +10,6 @@ from __future__ import annotations
 from nemoguardrails.actions import action
 
 from modules.guardrails.absolutism_rule import absolutism_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
 
 

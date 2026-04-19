@@ -1,7 +1,7 @@
 """Regression test for the v0.8.4-era silent-rails-off bug.
 
 In v0.8.4 the deployed service exhibited a latent failure: every
-``@action`` file in ``guardrails/actions/`` used a relative import
+``@action`` file in ``guardrails_config/actions/`` used a relative import
 (``from ._audit_emit import emit_rail_fire``), but nemoguardrails
 loads each action file via ``importlib.util.spec_from_file_location``
 with no parent package attached. Python therefore couldn't resolve
@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-ACTIONS_DIR = Path(__file__).resolve().parent.parent / "guardrails" / "actions"
+ACTIONS_DIR = Path(__file__).resolve().parent.parent / "guardrails_config" / "actions"
 
 # Files starting with ``_`` are support modules (e.g. ``_audit_emit``
 # historically), not @action-registered files. If any such file is

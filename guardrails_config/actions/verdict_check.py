@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from nemoguardrails.actions import action
 
-from modules.guardrails.verdict_rule import verdict_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
+from modules.guardrails.verdict_rule import verdict_report
 
 
 @action(name="VerdictCheckAction", execute_async=True)

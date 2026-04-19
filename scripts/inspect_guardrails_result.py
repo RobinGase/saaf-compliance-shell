@@ -7,7 +7,7 @@ from nemoguardrails import LLMRails, RailsConfig
 
 
 async def main() -> None:
-    cfg = RailsConfig.from_path(str(Path("guardrails").resolve()))
+    cfg = RailsConfig.from_path(str(Path("guardrails_config").resolve()))
     rails = LLMRails(cfg)
     result = await rails.generate_async(
         messages=[{"role": "user", "content": "Review this compliance note for GDPR issues."}]

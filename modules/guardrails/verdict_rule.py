@@ -1,6 +1,6 @@
 """Pure-Python detection of unfounded compliance verdicts.
 
-Separated from `guardrails/actions/verdict_check.py` (which wraps this
+Separated from `guardrails_config/actions/verdict_check.py` (which wraps this
 logic as a NeMo Guardrails action) so the detection can be unit-tested
 without a nemoguardrails install.
 

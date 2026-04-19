@@ -79,11 +79,11 @@ saaf-shell diff --agent-id <session-id>
 The guarded channel the workload talks to instead of the model. Request flow: PII redaction (Presidio + Dutch BSN) → prompt-injection preflight → topical rail → forward to Privacy Router → response re-runs PII redaction plus the twelve output rails listed in [SECURITY.md §9](docs/SECURITY.md#9-unsafe-claim-shapes-in-model-output).
 
 ```bash
-python -m modules.guardrails.service --config-path guardrails/
+python -m modules.guardrails.service --config-path guardrails_config/
 curl -s http://127.0.0.1:8088/health
 ```
 
-Each rail is a thin `@action` in `guardrails/actions/` wrapping a pure-Python rule in `modules/guardrails/*_rule.py`. Colang 2.0 flows: [`guardrails/rails.co`](guardrails/rails.co). Rules are regex-based and CI-runnable without a nemoguardrails install.
+Each rail is a thin `@action` in `guardrails_config/actions/` wrapping a pure-Python rule in `modules/guardrails/*_rule.py`. Colang 2.0 flows: [`guardrails_config/rails.co`](guardrails_config/rails.co). Rules are regex-based and CI-runnable without a nemoguardrails install.
 
 ### 4. Privacy Router: `modules/router/privacy_router.py` (HTTP on `:8089`)
 
@@ -150,7 +150,7 @@ Grouped by what you're trying to do.
 | `modules/guardrails/` | repo-owned Guardrails HTTP service |
 | `modules/router/` | local model routing proxy |
 | `modules/audit/` | tamper-evident audit log |
-| `guardrails/` | Guardrails config and Colang flows |
+| `guardrails_config/` | Guardrails config and Colang flows |
 | `scripts/` | setup, smoke test, rootfs, kernel, release tooling |
 | `ops/systemd/` | systemd units for the production install path |
 | `tests/` | unit tests and integration fixtures |

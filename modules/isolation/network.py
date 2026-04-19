@@ -121,7 +121,7 @@ def validate_v1_network_rules(manifest: dict) -> dict:
     return rule
 
 
-def build_setup_commands(session_id: str) -> list[list[str]]:
+def build_setup_commands(session_id: str, nfs_port: int = NFS_PORT) -> list[list[str]]:
     tap = tap_device_name(session_id)
     return [
         ["ip", "tuntap", "add", "dev", tap, "mode", "tap"],
@@ -140,7 +140,7 @@ def build_setup_commands(session_id: str) -> list[list[str]]:
             "-d",
             HOST_GATEWAY,
             "--dport",
-            str(NFS_PORT),
+            str(nfs_port),
             "-j",
             "ACCEPT",
         ],
@@ -185,7 +185,7 @@ def build_setup_commands(session_id: str) -> list[list[str]]:
     ]
 
 
-def build_teardown_commands(session_id: str) -> list[list[str]]:
+def build_teardown_commands(session_id: str, nfs_port: int = NFS_PORT) -> list[list[str]]:
     tap = tap_device_name(session_id)
     return [
         [
@@ -222,7 +222,7 @@ def build_teardown_commands(session_id: str) -> list[list[str]]:
             "-d",
             HOST_GATEWAY,
             "--dport",
-            str(NFS_PORT),
+            str(nfs_port),
             "-j",
             "ACCEPT",
         ],

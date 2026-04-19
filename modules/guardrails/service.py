@@ -5,11 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-import tempfile
-import threading
 import time
-from collections.abc import Iterator
-from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -63,7 +59,7 @@ class ChatCompletionRequest(BaseModel):
 #   - Base64 / ROT13 / any encoding the model will still interpret.
 #
 # The real prompt-injection gate is the Colang `self_check_input`
-# rail in ``guardrails/rails.co``, which runs an LLM classifier over
+# rail in ``guardrails_config/rails.co``, which runs an LLM classifier over
 # the full message. The preflight sits in front of the rail for two
 # reasons:
 #   1. Cost — the LLM call is avoided on obvious attempts.
@@ -72,7 +68,7 @@ class ChatCompletionRequest(BaseModel):
 #      names the specific substring that fired, so operators can see
 #      what the tripwire is actually catching.
 #
-# Patterns are read from ``guardrails/config.yml`` at process start
+# Patterns are read from ``guardrails_config/config.yml`` at process start
 # (see ``_load_preflight_patterns``). Change them there, not here,
 # so the set can be reviewed and tuned without a code change.
 DEFAULT_INJECTION_PATTERNS: tuple[str, ...] = (
@@ -90,75 +86,62 @@ DEFAULT_OFF_TOPIC_PATTERNS: tuple[str, ...] = (
 MAX_GUARDRAILS_PAYLOAD_CHARS = 12000
 
 
-# Process-wide lock around the CWD-chdir in
-# ``_neutral_cwd_for_colang_imports``. ``os.chdir`` mutates a
-# process-global; any concurrent thread that reads or resolves a
-# relative path during the chdir window sees the temp directory. The
-# real window is narrow — the wrapper is only reached on cold
-# ``_build_rails`` cache misses, and ``functools.lru_cache``
-# internally serializes concurrent first-call lookups — but we hold
-# an explicit lock anyway so the behaviour is safe even if an
-# operator runs the service with ``uvicorn --workers >1`` or reuses
-# the helper from a threaded context.
-#
-# The long-term fix is to rename the config directory from
-# ``guardrails/`` to ``guardrails_config/`` so Colang's CWD-first
-# import resolver stops shadowing the nemoguardrails library;
-# tracked in docs/REVIEW_2026-04-18.md under C5 for v0.9.
-_CWD_CHDIR_LOCK = threading.Lock()
+def _config_dir_mtime(config_path: str) -> float:
+    """Return the max mtime across every file under ``config_path``.
 
-
-@contextmanager
-def _neutral_cwd_for_colang_imports() -> Iterator[None]:
-    """Shadow-proof CWD for Colang's import resolver.
-
-    ``nemoguardrails/rails/llm/config.py`` resolves ``import X`` by
-    checking ``os.path.exists(X)`` against CWD *before* consulting
-    COLANGPATH. Our config directory is named ``guardrails``, so a
-    service started from the repo root causes ``import guardrails`` in
-    ``main.co`` to re-resolve to our own config dir instead of the
-    nemoguardrails library — reloading ``main.co`` a second time and
-    triggering a ``Multiple non-overriding flows with name 'main'``
-    collision at LLMRails construction.
-
-    Chdir to a directory guaranteed not to contain a ``guardrails``
-    subdirectory for the duration of config parsing, then restore.
-
-    The chdir is guarded by ``_CWD_CHDIR_LOCK`` so concurrent
-    builders cannot step on each other's CWD. See the lock's
-    comment for the thread-safety model.
+    Used as part of the ``_build_rails`` cache key so an edit to any
+    Colang flow or YAML under the config dir invalidates the cached
+    ``LLMRails`` instance without a service restart. A missing path
+    returns ``0.0`` so the cache still keys deterministically; the
+    subsequent ``RailsConfig.from_path`` call will surface the real
+    error.
     """
-    with _CWD_CHDIR_LOCK:
-        old = os.getcwd()
+    path = Path(config_path)
+    if not path.exists():
+        return 0.0
+    if path.is_file():
+        return path.stat().st_mtime
+    latest = 0.0
+    for child in path.rglob("*"):
         try:
-            os.chdir(tempfile.gettempdir())
-            yield
-        finally:
-            os.chdir(old)
+            if child.is_file():
+                mtime = child.stat().st_mtime
+                if mtime > latest:
+                    latest = mtime
+        except OSError:
+            continue
+    return latest
 
 
 @lru_cache(maxsize=8)
-def _build_rails(config_path: str, model_name: str | None, self_check_url: str):
+def _build_rails(
+    config_path: str,
+    model_name: str | None,
+    self_check_url: str,
+    config_mtime: float,
+):
     """Construct an ``LLMRails`` for a given config + self-check URL.
 
     ``self_check_url`` is part of the cache key so that a change to
     ``SAAF_SELF_CHECK_URL`` between requests rebuilds the config with the
     new URL instead of silently reusing a cached instance pointing at the
-    old one.
+    old one. ``config_mtime`` keys on the config dir's max mtime so an
+    edit to any Colang flow or YAML file busts the cache without a
+    restart; it is unused inside the function body.
     """
+    del config_mtime  # cache-key only
     os.environ.setdefault("OPENAI_API_KEY", "not-used")
 
-    with _neutral_cwd_for_colang_imports():
-        cfg = RailsConfig.from_path(config_path)
-        if self_check_url:
-            updated_models = []
-            for model in cfg.models:
-                if model.type == "self_check":
-                    model.parameters = {**model.parameters, "base_url": self_check_url}
-                updated_models.append(model)
-            cfg = cfg.model_copy(update={"models": updated_models})
+    cfg = RailsConfig.from_path(config_path)
+    if self_check_url:
+        updated_models = []
+        for model in cfg.models:
+            if model.type == "self_check":
+                model.parameters = {**model.parameters, "base_url": self_check_url}
+            updated_models.append(model)
+        cfg = cfg.model_copy(update={"models": updated_models})
 
-        return LLMRails(cfg)
+    return LLMRails(cfg)
 
 
 def get_rails(config_path: str, model_name: str | None = None):
@@ -166,10 +149,13 @@ def get_rails(config_path: str, model_name: str | None = None):
 
     Reads ``SAAF_SELF_CHECK_URL`` fresh on every call and includes it in
     the underlying cache key — operators can redirect the self-check
-    endpoint without restarting the service.
+    endpoint without restarting the service. Also reads the config dir's
+    max mtime per call and includes it in the key so edits to Colang
+    flows / YAML are picked up on the next request.
     """
     self_check_url = os.environ.get("SAAF_SELF_CHECK_URL", "")
-    return _build_rails(config_path, model_name, self_check_url)
+    config_mtime = _config_dir_mtime(config_path)
+    return _build_rails(config_path, model_name, self_check_url, config_mtime)
 
 
 def create_app(config_path: str | Path) -> FastAPI:
@@ -470,7 +456,7 @@ def _preflight_block(
 
 def build_default_app() -> FastAPI:
     repo_root = Path(__file__).resolve().parents[2]
-    return create_app(repo_root / "guardrails")
+    return create_app(repo_root / "guardrails_config")
 
 
 app = build_default_app()

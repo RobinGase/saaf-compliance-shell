@@ -14,7 +14,7 @@ VALID_DATA_CLASSIFICATIONS = {"sensitive", "test"}
 # Presidio ships dozens of additional recognizers (CREDIT_CARD, IBAN_CODE,
 # IP_ADDRESS, PHONE_NUMBER, US_SSN, ...). See
 # https://microsoft.github.io/presidio/supported_entities/ and the custom
-# BSN_NL recognizer in ``guardrails/actions/presidio_redact.py``. Add new
+# BSN_NL recognizer in ``guardrails_config/actions/presidio_redact.py``. Add new
 # entries here when extending PII coverage — the validator rejects anything
 # unknown so a typo can't silently become a no-op mask.
 VALID_PII_ENTITIES = {"PERSON", "EMAIL_ADDRESS", "BSN_NL"}

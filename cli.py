@@ -241,7 +241,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_test.add_argument("--suite", "-s", required=True, help="Test suite name")
     p_test.add_argument("--overlay-dir", default=str(DEFAULT_OVERLAY_DIR), help="AgentFS overlay directory for vm-probe")
     p_test.add_argument("--audit-log", default="/tmp/saaf-probe-audit.jsonl", help="Audit log path for vm-probe")
-    p_test.add_argument("--config-dir", default="guardrails", help="Guardrails config directory for guardrails-routing")
+    p_test.add_argument("--config-dir", default="guardrails_config", help="Guardrails config directory for guardrails-routing")
     p_test.add_argument("--cases", default=str(Path("tests") / "fixtures" / "red_team_cases.json"), help="Path to red team case file")
     p_test.add_argument("--endpoint", default="http://127.0.0.1:8088/v1/chat/completions", help="Guardrails endpoint for red-team suite")
     p_test.set_defaults(func=cmd_test)

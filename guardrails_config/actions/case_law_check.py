@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from nemoguardrails.actions import action
 
-from modules.guardrails.case_law_rule import case_law_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
+from modules.guardrails.case_law_rule import case_law_report
 
 
 @action(name="CaseLawCheckAction", execute_async=True)

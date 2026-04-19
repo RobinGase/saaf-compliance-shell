@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from nemoguardrails.actions import action
 
-from modules.guardrails.cve_rule import cve_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
+from modules.guardrails.cve_rule import cve_report
 
 
 @action(name="CVECheckAction", execute_async=True)

@@ -134,11 +134,103 @@ Landed `cab64b3` on `origin/main`. Tag `v0.9.0-s3`.
   change that flips a baseline entry fails CI with a message telling
   the author to update the baseline in the same commit.
 
-## S4 — v0.8.7-deferred bundle
+## S4 — v0.8.7-deferred bundle  (v0.9.0-s4)
 
-Pending (task #5). Covers H2 NFS log routing, `guardrails/` rename,
-`setuptools_scm`, `_build_rails` mtime cache, H3 per-session NFS port.
-Batch 2 lock must land first (H3 depends on it).
+Landed on `main` (pending tag `v0.9.0-s4`). Five sub-batches in
+risk-ascending order: mtime cache → NFS log routing → per-session
+NFS port → `setuptools_scm` → config-dir rename.
+
+- **S4.1 — `_build_rails` mtime-keyed cache.** Added
+  `_config_dir_mtime(config_path)` helper (max mtime across every
+  file under the config dir) and threaded it through the
+  `functools.lru_cache` key on `_build_rails`. `get_rails` reads
+  `SAAF_SELF_CHECK_URL` and `_config_dir_mtime` fresh on every
+  request, so a Colang or YAML edit invalidates the cache on the
+  next call without a service restart. Cache-key param
+  (`config_mtime`) is discarded inside the body via `del`. Test:
+  `test_get_rails_rebuilds_when_config_file_edited` uses `os.utime`
+  to bump mtime and asserts the build counter increments between
+  requests.
+- **S4.2 — H2 NFS server log routing.** `start_nfs_server` grew an
+  optional `log_path` parameter; when set, `stdout` is redirected to
+  `open(log_path, "ab", buffering=0)` and `stderr` is redirected to
+  `STDOUT`. Before H2, `DEVNULL` swallowed NFS chatter and a failed
+  guest mount surfaced only as an opaque boot error. `runtime.py`
+  now passes `log_path = overlay_dir.parent / f"{session_id}.nfs.log"`
+  on every session so operators can tail per-session mount output in
+  the session workdir. Tests:
+  `test_start_nfs_server_routes_stdout_to_log_path` (unit) and the
+  H2 branch of `test_run_manifest_starts_agentfs_nfs_for_session`
+  (wiring).
+- **S4.3 — H3 per-session ephemeral NFS port.** Removed the
+  `DEFAULT_NFS_PORT = 11111` constant from `network.py`.
+  `build_setup_commands` / `build_teardown_commands` now take an
+  `nfs_port: int` parameter (no default), so a silent fallback to
+  the old static port is not syntactically possible. `runtime.py`
+  picks the port inside the session lock via
+  `_pick_free_nfs_port()` — `socket.bind(('', 0))` on the gateway
+  address, read `getsockname`, close. Port selection, command
+  assembly, and VM launch all sit inside `acquire_session_lock` so
+  two concurrent sessions cannot collide on port allocation. A
+  `nfs_port_selected` audit event lands in the chain. Regression
+  guard: the new port must be non-zero and != 11111, so a revert to
+  the static default fails the test. Tests:
+  `test_run_manifest_ephemeral_port_differs_across_sessions`
+  (sequential picks both ephemeral) and the H3 asserts in the
+  existing runtime test.
+- **S4.4 — `setuptools_scm` migration.** `pyproject.toml` now
+  declares `dynamic = ["version"]` and carries a `[tool.setuptools_scm]`
+  block that writes the resolved version to `modules/_version.py`
+  (gitignored). `tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+)(?:-s\\d+)?$"`
+  accepts the wave-checkpoint tags (`v0.9.0-s1`…) and normalises to
+  `MAJOR.MINOR.PATCH` so PEP 440 is happy. `fallback_version =
+  "0.0.0+unknown"` only kicks in when neither a git checkout nor
+  `SETUPTOOLS_SCM_PRETEND_VERSION` is available; the `+unknown`
+  local segment makes drift obvious in logs. The release tarball
+  script no longer cross-checks a hard-coded pyproject version
+  against the tag (the tag *is* the source); the tag is embedded in
+  the output metadata instead.
+- **S4.5 — `guardrails/` → `guardrails_config/` rename.** The
+  project's Colang config dir shadowed `import guardrails` in
+  `main.co` because nemoguardrails' import resolver checks
+  `os.path.exists(X)` in CWD before consulting `COLANGPATH`. Running
+  the service from the repo root caused `import guardrails` to
+  re-resolve to our config dir, re-load `main.co`, and error with
+  `Multiple non-overriding flows with name 'main'` at `LLMRails`
+  construction. Workaround in v0.8.5–v0.8.7 was a process-wide
+  `_CWD_CHDIR_LOCK` + `os.chdir(tempfile.gettempdir())` window
+  wrapped around `RailsConfig.from_path`. Renamed the directory
+  (`guardrails/` → `guardrails_config/`) across code, tests, docs,
+  and packaging; removed the chdir workaround and its lock.
+  `import guardrails` in `main.co` now unambiguously resolves to the
+  nemoguardrails library. Touched: `modules/guardrails/service.py`
+  (removed `_neutral_cwd_for_colang_imports` context manager and
+  `_CWD_CHDIR_LOCK`, updated comments, `build_default_app` now
+  points at `guardrails_config`), `scripts/start-guardrails-local.py`,
+  `scripts/inspect_guardrails_result.py`,
+  `scripts/validate_guardrails_routing.py`,
+  `scripts/check_branch_portability.py`, `cli.py`,
+  `pyproject.toml` (`[tool.setuptools.packages.find]` +
+  `package-data`), `tests/test_guardrails_config.py` (4 paths),
+  `tests/test_guardrails_colang_wiring.py`,
+  `tests/test_action_loader.py`, `tests/test_presidio_redact.py`
+  (`from guardrails_config.actions.presidio_redact import …`), and
+  docs (README, ARCHITECTURE, SECURITY, QUICKSTART,
+  implementation_plan). Historical reviews
+  (`docs/REVIEW_2026-04-18.md`) are left as-is so the motivation for
+  the rename stays readable at the commit that introduced it.
+- Evidence: 621 passed + 36 skipped on the Windows dev venv
+  (skips are the nemoguardrails-dependent tests on a venv without
+  nemoguardrails installed; `test_presidio_redact.py` is ignored at
+  collection for the same reason — pre-existing Windows skip). Ruff
+  clean across the tree (auto-fixed 12 I001 import-sort warnings
+  that had been dormant in `guardrails/actions/` on HEAD, now
+  cleaned up as part of the rename touch). Mypy clean on every
+  touched `modules/` file and `cli.py`.
+- Exit criterion met: the CWD-shadow workaround is gone, the NFS
+  log path and per-session port are wired end-to-end, the rails
+  cache invalidates on config edits, and the version string is
+  tag-driven.
 
 ## S5 — DORA OJ-verification backstop
 

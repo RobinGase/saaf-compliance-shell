@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import socket
 import subprocess
 from pathlib import Path
 from uuid import uuid4
@@ -29,7 +30,25 @@ DEFAULT_KERNEL_PATH = Path("/opt/saaf/kernels/vmlinux")
 DEFAULT_ROOTFS_PATH = Path("/opt/saaf/rootfs/ubuntu-24.04-python-base")
 DEFAULT_OVERLAY_DIR = Path("/opt/saaf/.agentfs")
 DEFAULT_AUDIT_LOG = Path("/var/log/openshell/audit.jsonl")
-DEFAULT_NFS_PORT = 11111
+
+
+def _pick_free_nfs_port() -> int:
+    """Pick an ephemeral TCP port the kernel reports as free.
+
+    H3: the previous implementation used a static ``DEFAULT_NFS_PORT =
+    11111`` for every session. A crashed session leaving the port in
+    ``TIME_WAIT`` (or any non-saaf process squatting on 11111) made the
+    next session fail at ``start_nfs_server``. Picking a fresh port per
+    session avoids that. Safe under S2 (host-wide session lock) —
+    saaf-internal contention for the port is excluded by the lock, and
+    the remaining micro-race against unrelated host processes between
+    the pick-socket close and ``start_nfs_server`` bind is negligible
+    on a dedicated VM host and would surface immediately as an NFS
+    start failure (visible in the H2 log).
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("", 0))
+        return probe.getsockname()[1]
 
 
 def run_manifest(
@@ -39,7 +58,7 @@ def run_manifest(
     rootfs_path: str | Path = DEFAULT_ROOTFS_PATH,
     overlay_dir: str | Path = DEFAULT_OVERLAY_DIR,
     audit_log_path: str | Path = DEFAULT_AUDIT_LOG,
-    nfs_port: int = DEFAULT_NFS_PORT,
+    nfs_port: int | None = None,
     session_lock_path: str | Path = DEFAULT_SESSION_LOCK_PATH,
 ) -> str:
     result = validate_manifest(manifest_path)
@@ -56,19 +75,7 @@ def run_manifest(
     agentfs = AgentFSClient(base_rootfs=rootfs_path, overlay_dir=overlay_dir)
     db_path = agentfs.create_session(session_id)
 
-    setup_commands = build_setup_commands(session_id)
-    teardown_commands = build_teardown_commands(session_id)
-    tap_device = tap_device_name(session_id)
-    config = build_vm_config(
-        manifest=manifest,
-        kernel_path=kernel_path,
-        tap_device=tap_device,
-        host_gateway=HOST_GATEWAY,
-        guest_ip=GUEST_IP,
-        nfs_port=nfs_port,
-    )
     manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-    policy_hash = hashlib.sha256(json.dumps(config, sort_keys=True).encode("utf-8")).hexdigest()
     audit = AuditLog(audit_log_path)
 
     # S2: host-wide session lock. Firecracker shares host NFS port,
@@ -77,17 +84,51 @@ def run_manifest(
     # those. The lock is released on normal exit and on crash (flock
     # lives on the FD, not the inode).
     with acquire_session_lock(session_lock_path, audit=audit, session_id=session_id):
+        # H3: pick NFS port inside the lock so the policy_hash,
+        # iptables ACCEPT rule, VM boot args, and NFS server bind all
+        # see the same value. Port is callable-overridable for tests
+        # and the debug scripts; when not supplied the kernel assigns a
+        # fresh ephemeral port.
+        chosen_nfs_port = nfs_port if nfs_port is not None else _pick_free_nfs_port()
+        setup_commands = build_setup_commands(session_id, chosen_nfs_port)
+        teardown_commands = build_teardown_commands(session_id, chosen_nfs_port)
+        tap_device = tap_device_name(session_id)
+        config = build_vm_config(
+            manifest=manifest,
+            kernel_path=kernel_path,
+            tap_device=tap_device,
+            host_gateway=HOST_GATEWAY,
+            guest_ip=GUEST_IP,
+            nfs_port=chosen_nfs_port,
+        )
+        policy_hash = hashlib.sha256(
+            json.dumps(config, sort_keys=True).encode("utf-8")
+        ).hexdigest()
         audit.start_session(
             session_id=session_id,
             policy_hash=policy_hash,
             manifest_hash=manifest_hash,
             vm_config=config,
         )
+        audit.record(
+            "nfs_port_selected",
+            session_id=session_id,
+            nfs_port=chosen_nfs_port,
+            selection="static" if nfs_port is not None else "ephemeral",
+        )
         nfs_process = None
 
         try:
             _run_commands(setup_commands, audit=audit, phase="setup", session_id=session_id)
-            nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port, db_path=db_path, workdir=Path(overlay_dir).parent)
+            nfs_log_path = Path(overlay_dir).parent / f"{session_id}.nfs.log"
+            nfs_process = start_nfs_server(
+                session_id,
+                HOST_GATEWAY,
+                chosen_nfs_port,
+                db_path=db_path,
+                workdir=Path(overlay_dir).parent,
+                log_path=nfs_log_path,
+            )
             console_log_path = Path(overlay_dir).parent / f"{session_id}.console.log"
             launch_firecracker(config, console_log_path=console_log_path)
             audit.record("vm_exit", session_id=session_id, status="ok")

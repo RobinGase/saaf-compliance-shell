@@ -39,7 +39,7 @@ from pathlib import Path
 
 import pytest
 
-CONFIG_DIR = Path(__file__).resolve().parent.parent / "guardrails"
+CONFIG_DIR = Path(__file__).resolve().parent.parent / "guardrails_config"
 
 _NEMOGUARDRAILS_AVAILABLE = (
     importlib.util.find_spec("nemoguardrails") is not None
@@ -60,7 +60,7 @@ def built_rails():
     from modules.guardrails.service import _build_rails
 
     _build_rails.cache_clear()  # pytest-cache isolation across runs
-    rails = _build_rails(str(CONFIG_DIR), None, "")
+    rails = _build_rails(str(CONFIG_DIR), None, "", 0.0)
     return rails
 
 

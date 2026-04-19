@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -112,7 +113,7 @@ def test_start_nfs_server_uses_overlay_db_path(tmp_path: Path, monkeypatch: pyte
         pid = 1234
 
     def fake_popen(cmd, cwd, stdout, stderr, text):
-        calls.append((cmd, cwd))
+        calls.append((cmd, cwd, stdout, stderr))
         return FakeProcess()
 
     monkeypatch.setattr("modules.isolation.agentfs.subprocess.Popen", fake_popen)
@@ -141,5 +142,46 @@ def test_start_nfs_server_uses_overlay_db_path(tmp_path: Path, monkeypatch: pyte
                 "session-001",
             ],
             overlay_dir.parent,
+            subprocess.DEVNULL,
+            subprocess.DEVNULL,
         )
     ]
+
+
+def test_start_nfs_server_routes_stdout_to_log_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """H2: passing ``log_path`` routes NFS stdout/stderr to that file
+    instead of DEVNULL, so operators can see mount failures without
+    recompiling the shell. Before H2, NFS chatter was discarded and a
+    failed mount surfaced only as an opaque guest-side boot error."""
+    overlay_dir = tmp_path / ".agentfs"
+    overlay_dir.mkdir()
+    log_path = tmp_path / "session-h2.nfs.log"
+
+    captured: dict = {}
+
+    class FakeProcess:
+        pid = 4321
+
+    def fake_popen(cmd, cwd, stdout, stderr, text):
+        captured["stdout"] = stdout
+        captured["stderr"] = stderr
+        return FakeProcess()
+
+    monkeypatch.setattr("modules.isolation.agentfs.subprocess.Popen", fake_popen)
+
+    from modules.isolation.agentfs import start_nfs_server
+
+    start_nfs_server(
+        session_id="session-h2",
+        host="172.16.0.1",
+        port=11111,
+        workdir=overlay_dir.parent,
+        log_path=log_path,
+    )
+
+    # stdout is a file handle opened by start_nfs_server — assert it has
+    # a writable fd pointing at our log file. stderr is redirected to
+    # stdout so mount errors land in the same log.
+    assert hasattr(captured["stdout"], "fileno")
+    assert captured["stderr"] == subprocess.STDOUT
+    assert log_path.exists()

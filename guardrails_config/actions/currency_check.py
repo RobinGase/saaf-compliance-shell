@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from nemoguardrails.actions import action
 
-from modules.guardrails.currency_rule import currency_report
-
 from modules.guardrails.audit_emit import emit_rail_fire
+from modules.guardrails.currency_rule import currency_report
 
 
 @action(name="CurrencyCheckAction", execute_async=True)

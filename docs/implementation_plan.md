@@ -1379,9 +1379,9 @@ Current testing state:
 | `saaf-shell` | Shell orchestrator — Firecracker VM launcher, AgentFS overlay manager, TAP networking, audit log bridge |
 | `build-rootfs.sh` | Base rootfs builder — debootstrap Ubuntu 24.04 with agent dependencies |
 | `vmlinux` | Pre-compiled Amazon Linux microVM kernel for Firecracker |
-| `guardrails/config.yml` | NeMo Guardrails server config — model targets, rail definitions |
-| `guardrails/*.co` | Colang 2.0 flow definitions — PII masking, prompt injection, topical control |
-| `guardrails/actions/presidio_redact.py` | Presidio action wired into guardrails — BSN recognizer, Dutch NLP |
+| `guardrails_config/config.yml` | NeMo Guardrails server config — model targets, rail definitions |
+| `guardrails_config/*.co` | Colang 2.0 flow definitions — PII masking, prompt injection, topical control |
+| `guardrails_config/actions/presidio_redact.py` | Presidio action wired into guardrails — BSN recognizer, Dutch NLP |
 | `privacy_router.py` | FastAPI model routing proxy — local-only in v1 |
 | `saaf-manifest.schema.json` | JSON Schema for target repo manifests |
 | `audit_log_schema.json` | JSON Schema for JSONL audit records |
