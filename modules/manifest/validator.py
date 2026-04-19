@@ -96,6 +96,14 @@ def _check_required_fields(manifest: dict, result: ValidationResult) -> None:
 
     if "name" not in manifest:
         result.add_error("name", "Missing required field 'name'")
+    else:
+        # RT-04: ``name`` is interpolated into the kernel cmdline as the
+        # hostname segment of ``ip=<ip>::<gw>:<netmask>:<name>:eth0:off``
+        # (see ``modules/isolation/firecracker.build_vm_config``).
+        # Whitespace or shell metachars in ``name`` would split the
+        # cmdline and inject a second kernel parameter — same failure
+        # mode ``_check_boot_arg`` guards for entrypoint/workdir/env.
+        _check_boot_arg(result, "name", manifest["name"], forbid_space=True)
 
 
 def _check_agent(manifest: dict, result: ValidationResult) -> None:

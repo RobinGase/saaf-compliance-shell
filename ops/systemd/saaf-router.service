@@ -24,6 +24,12 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/tmp
+# RT-10: LogsDirectory= creates /var/log/openshell (owned by User=saaf,
+# mode 0755) before ExecStart and auto-adds it to the writable sandbox,
+# matching the default AUDIT_LOG_PATH=/var/log/openshell/audit.jsonl so
+# the router can append route_decision events to the hash chain.
+LogsDirectory=openshell
+LogsDirectoryMode=0750
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

@@ -142,6 +142,46 @@ class TestBootArgValidation:
         result = validate_manifest(path)
         assert result.valid, result.errors
 
+    def test_name_with_space_is_rejected(self, tmp_path: Path):
+        """RT-04: a space in ``name`` would split the kernel cmdline and
+        inject a second parameter after the ``ip=`` segment."""
+        path = self._write_manifest(tmp_path, {})
+        import yaml as _yaml
+        manifest = _yaml.safe_load(path.read_text(encoding="utf-8"))
+        manifest["name"] = "foo init=/bin/sh"
+        path.write_text(_yaml.safe_dump(manifest), encoding="utf-8")
+        result = validate_manifest(path)
+        assert not result.valid
+        assert any(e.field == "name" for e in result.errors)
+
+    def test_name_with_dollar_is_rejected(self, tmp_path: Path):
+        """RT-04: shell metachars in ``name`` land on the cmdline unescaped."""
+        path = self._write_manifest(tmp_path, {})
+        import yaml as _yaml
+        manifest = _yaml.safe_load(path.read_text(encoding="utf-8"))
+        manifest["name"] = "vm$(whoami)"
+        path.write_text(_yaml.safe_dump(manifest), encoding="utf-8")
+        result = validate_manifest(path)
+        assert not result.valid
+        assert any(e.field == "name" for e in result.errors)
+
+    def test_name_with_newline_is_rejected(self, tmp_path: Path):
+        """RT-04: newlines in ``name`` split cmdline parsing."""
+        path = self._write_manifest(tmp_path, {})
+        import yaml as _yaml
+        manifest = _yaml.safe_load(path.read_text(encoding="utf-8"))
+        manifest["name"] = "vm\ninit=/bin/sh"
+        path.write_text(_yaml.safe_dump(manifest), encoding="utf-8")
+        result = validate_manifest(path)
+        assert not result.valid
+        assert any(e.field == "name" for e in result.errors)
+
+    def test_normal_hyphenated_name_still_valid(self, tmp_path: Path):
+        """Regression guard: ``vendor-guard`` (the canonical shape) passes."""
+        path = self._write_manifest(tmp_path, {})
+        result = validate_manifest(path)
+        assert result.valid, result.errors
+
 
 class TestV1NetworkPolicyFolding:
     """M1: validate_manifest now also enforces the v1-only network policy

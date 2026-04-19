@@ -22,6 +22,13 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/tmp
+# RT-10: LogsDirectory= creates /var/log/openshell (owned by User=saaf,
+# mode 0755) before ExecStart and auto-adds it to the writable sandbox,
+# matching the default AUDIT_LOG_PATH=/var/log/openshell/audit.jsonl so
+# a stock deploy can actually write the audit trail under
+# ProtectSystem=strict.
+LogsDirectory=openshell
+LogsDirectoryMode=0750
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

@@ -297,13 +297,106 @@ Landed on `main` as `fe7d2be`, tagged `v0.9.0-s5`.
   specific misreading a reviewer (or a future LLM) might propose;
   the docstring no longer contains the wrong statutory citation.
 
-## S6 — SBOM + signed releases
+## S6 — Red-team quick-wins (RT-04, RT-09, RT-10)  (v0.9.0-s6)
 
-Pending (task #7).
+Landed on `main` (pending tag `v0.9.0-s6`).
 
-## S7 — NAP mapping document
+External red-team review (GPT-5.4, 2026-04-19T15:27:54+02:00) produced
+10 findings against the v0.9.0-s5 HEAD. All 10 were verified real
+against the actual code (not the docs) during intake. This batch closes
+the three that are trivial single-file fixes; the remaining seven are
+queued for S7–S10 (see §Re-plan below).
 
-Pending (task #8).
+- **RT-04 — manifest `name` injects kernel cmdline.** `firecracker.
+  build_vm_config` interpolates `manifest["name"]` directly into the
+  kernel `ip=<ip>::<gw>:<netmask>:<name>:eth0:off` segment with no
+  escaping. `_check_boot_arg` covered `agent.entrypoint`,
+  `agent.working_directory`, and `agent.env.*` but not `name`. A
+  manifest with `name: "foo init=/bin/sh"` would split the cmdline and
+  inject a second kernel parameter at boot.
+  - Fix: `_check_required_fields` now calls
+    `_check_boot_arg(result, "name", manifest["name"],
+    forbid_space=True)` on the name value. Same allowlist the other
+    boot-arg fields use (alphanumeric + `_ . / : @ - +`); spaces
+    explicitly rejected because the hostname segment must not contain
+    whitespace.
+  - Tests: `test_name_with_space_is_rejected`,
+    `test_name_with_dollar_is_rejected`,
+    `test_name_with_newline_is_rejected`,
+    `test_normal_hyphenated_name_still_valid` (positive control —
+    `vendor-guard` still passes).
+
+- **RT-09 — session_id bleeding.** `_read_chain_tail` in
+  `modules/audit/log.py` set `session_id` on `session_start` but never
+  cleared it on `session_end`. The propagation block below (`if
+  session_id is not None and "session_id" not in fields: record
+  ["session_id"] = session_id`) then stamped the closed session's id
+  onto any later event that omitted one — typically a
+  `route_decision` emitted by the privacy router after the session
+  had been closed. Verify_log stayed green because the hash chain
+  was consistent; the session attribution was silently wrong.
+  - Fix: one added `elif rec.get("event_type") == "session_end":
+    session_id = None` branch in the tail scanner.
+  - Tests:
+    `test_post_session_event_does_not_inherit_closed_session_id`
+    (router event after close has no session_id),
+    `test_new_session_event_ids_do_not_bleed_into_next_session`
+    (two-session interleave, confirms the fix doesn't regress the
+    normal-case propagation inside an open session).
+
+- **RT-10 — systemd sandbox vs audit path.** Both `saaf-router.
+  service` and `saaf-guardrails.service` had `ReadWritePaths=/tmp`
+  under `ProtectSystem=strict`, but the default `AUDIT_LOG_PATH` is
+  `/var/log/openshell/audit.jsonl`. A stock deploy could not write
+  the audit log — writes would fail with `EROFS` inside the sandbox.
+  Either operators had to override the env var or edit the unit;
+  neither was documented in the service comment.
+  - Fix: `LogsDirectory=openshell` + `LogsDirectoryMode=0750` added
+    to both units. `LogsDirectory=` is the systemd-native way —
+    creates `/var/log/openshell` owned by `User=saaf` with mode
+    0750 before `ExecStart`, and auto-adds it to the writable
+    sandbox, leaving `ProtectSystem=strict` intact.
+
+**Evidence:**
+- 631 pass (+6 from S5's 625), 36 skipped. Ruff + mypy clean on
+  touched files. Three single-file fixes, six regression tests.
+- No production code value changed beyond the validator allowlist
+  extension and the one-line tail-scanner clear; the systemd change
+  is sandbox configuration.
+
+**Re-plan after external review:**
+- **S6** — RT-04, RT-09, RT-10 (this batch).
+- **S7** — RT-02 + RT-03 (audit rollback/suffix-deletion +
+  crash-heal tamper-erasure). External head-pointer / checkpoint +
+  heal-truncation becomes loud (CRITICAL + operator ack required).
+- **S8** — RT-05 + RT-08 (unredacted bot_message in audit +
+  preflight-last-message-only).
+- **S9** — RT-01 (router bypass boundary decision — UDS vs shared
+  secret vs documented-accept).
+- **S10** — RT-06 + RT-07 + original S7 NAP mapping (doc alignment +
+  `-I` vs `-A` rules under `SAAF_ALLOW_IP_FORWARD` + Colang 2.x
+  topical action port).
+- **S11** — SBOM + cosign keyless signing (was original S6).
+
+## S7 — audit integrity (RT-02 + RT-03)
+
+Pending.
+
+## S8 — PII + history (RT-05 + RT-08)
+
+Pending.
+
+## S9 — router boundary (RT-01)
+
+Pending — needs threat-model decision.
+
+## S10 — doc alignment + NAP mapping (RT-06 + RT-07 + original S7)
+
+Pending.
+
+## S11 — SBOM + signed releases
+
+Pending (was original S6).
 
 ## Deferred to v0.9.1+
 

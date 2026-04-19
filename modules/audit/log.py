@@ -229,6 +229,13 @@ def _read_chain_tail(log_path: Path) -> tuple[str | None, int, str, int | None]:
 
             if rec.get("event_type") == "session_start":
                 session_id = rec.get("session_id")
+            elif rec.get("event_type") == "session_end":
+                # RT-09: without this clear, a later writer that omits
+                # ``session_id`` (e.g. a ``route_decision`` emitted by
+                # the privacy router after the session closed) would
+                # inherit the closed session's id via the propagation
+                # block below and appear to belong to it.
+                session_id = None
             seq = rec.get("seq")
             if isinstance(seq, int):
                 next_seq = seq + 1

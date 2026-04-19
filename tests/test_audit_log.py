@@ -281,6 +281,50 @@ class TestAppendChainedEvent:
         valid, message = verify_log(tmp_log)
         assert valid is True, message
 
+    def test_post_session_event_does_not_inherit_closed_session_id(self, tmp_log):
+        """RT-09: after ``session_end`` the tail scanner must forget the
+        session id. A ``route_decision`` written later (by the privacy
+        router, for instance) that omits ``session_id`` must not appear
+        to belong to the just-closed session.
+        """
+        log = AuditLog(tmp_log)
+        log.start_session(session_id="s-closed", policy_hash="a", manifest_hash="b")
+        log.record("file_create", path="/audit_workspace/x.txt")
+        log.end_session()
+
+        # Router emits an event without explicit session_id after close.
+        appended = append_chained_event(
+            tmp_log, "route_decision", target="local_nim", model="m"
+        )
+        assert "session_id" not in appended
+
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message
+
+    def test_new_session_event_ids_do_not_bleed_into_next_session(self, tmp_log):
+        """RT-09 companion: a second session's events must carry the new
+        session_id, not the prior one. Guards the normal multi-session case
+        where the tail-scanner previously would have kept propagating the
+        first session's id through the entire file.
+        """
+        log_a = AuditLog(tmp_log)
+        log_a.start_session(session_id="s-a", policy_hash="a", manifest_hash="b")
+        log_a.record("file_create", path="/audit_workspace/x.txt")
+        log_a.end_session()
+
+        # Between sessions: a router event with no explicit session_id
+        between = append_chained_event(tmp_log, "route_decision", target="t", model="m")
+        assert "session_id" not in between
+
+        log_b = AuditLog(tmp_log)
+        log_b.start_session(session_id="s-b", policy_hash="a", manifest_hash="b")
+        in_b = append_chained_event(tmp_log, "route_decision", target="t", model="m")
+        assert in_b["session_id"] == "s-b"
+
+        log_b.end_session()
+        valid, message = verify_log(tmp_log)
+        assert valid is True, message
+
     def test_interleaved_writers_keep_chain(self, tmp_log):
         """AuditLog and append_chained_event must interleave without breaking the chain.
 
