@@ -23,6 +23,7 @@ from .network import (
     tap_device_name,
     validate_v1_network_rules,
 )
+from .session_lock import DEFAULT_SESSION_LOCK_PATH, acquire_session_lock
 
 DEFAULT_KERNEL_PATH = Path("/opt/saaf/kernels/vmlinux")
 DEFAULT_ROOTFS_PATH = Path("/opt/saaf/rootfs/ubuntu-24.04-python-base")
@@ -39,6 +40,7 @@ def run_manifest(
     overlay_dir: str | Path = DEFAULT_OVERLAY_DIR,
     audit_log_path: str | Path = DEFAULT_AUDIT_LOG,
     nfs_port: int = DEFAULT_NFS_PORT,
+    session_lock_path: str | Path = DEFAULT_SESSION_LOCK_PATH,
 ) -> str:
     result = validate_manifest(manifest_path)
     if not result.valid or not result.manifest:
@@ -68,46 +70,53 @@ def run_manifest(
     manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     policy_hash = hashlib.sha256(json.dumps(config, sort_keys=True).encode("utf-8")).hexdigest()
     audit = AuditLog(audit_log_path)
-    audit.start_session(
-        session_id=session_id,
-        policy_hash=policy_hash,
-        manifest_hash=manifest_hash,
-        vm_config=config,
-    )
-    nfs_process = None
 
-    try:
-        _run_commands(setup_commands, audit=audit, phase="setup", session_id=session_id)
-        nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port, db_path=db_path, workdir=Path(overlay_dir).parent)
-        console_log_path = Path(overlay_dir).parent / f"{session_id}.console.log"
-        launch_firecracker(config, console_log_path=console_log_path)
-        audit.record("vm_exit", session_id=session_id, status="ok")
-    except Exception as exc:
-        # C2: an abnormal exit (setup failure, NFS launch failure,
-        # Firecracker crash) used to leave only a session_start +
-        # session_end pair in the audit log, with no record of why the
-        # VM never ran. Emit an explicit ``vm_exit`` with status=failed
-        # before re-raising so operators reading the log see the
-        # failure reason without cross-referencing stderr or container
-        # logs. Teardown in ``finally`` still runs.
-        audit.record(
-            "vm_exit",
+    # S2: host-wide session lock. Firecracker shares host NFS port,
+    # iptables tables, and the ip_forward gate across sessions; two
+    # concurrent ``run_manifest`` calls on the same host would race on
+    # those. The lock is released on normal exit and on crash (flock
+    # lives on the FD, not the inode).
+    with acquire_session_lock(session_lock_path, audit=audit, session_id=session_id):
+        audit.start_session(
             session_id=session_id,
-            status="failed",
-            reason=str(exc),
-            exception_class=type(exc).__name__,
+            policy_hash=policy_hash,
+            manifest_hash=manifest_hash,
+            vm_config=config,
         )
-        raise
-    finally:
-        stop_nfs_server(nfs_process)
-        _run_commands(
-            teardown_commands,
-            check=False,
-            audit=audit,
-            phase="teardown",
-            session_id=session_id,
-        )
-        audit.end_session()
+        nfs_process = None
+
+        try:
+            _run_commands(setup_commands, audit=audit, phase="setup", session_id=session_id)
+            nfs_process = start_nfs_server(session_id, HOST_GATEWAY, nfs_port, db_path=db_path, workdir=Path(overlay_dir).parent)
+            console_log_path = Path(overlay_dir).parent / f"{session_id}.console.log"
+            launch_firecracker(config, console_log_path=console_log_path)
+            audit.record("vm_exit", session_id=session_id, status="ok")
+        except Exception as exc:
+            # C2: an abnormal exit (setup failure, NFS launch failure,
+            # Firecracker crash) used to leave only a session_start +
+            # session_end pair in the audit log, with no record of why the
+            # VM never ran. Emit an explicit ``vm_exit`` with status=failed
+            # before re-raising so operators reading the log see the
+            # failure reason without cross-referencing stderr or container
+            # logs. Teardown in ``finally`` still runs.
+            audit.record(
+                "vm_exit",
+                session_id=session_id,
+                status="failed",
+                reason=str(exc),
+                exception_class=type(exc).__name__,
+            )
+            raise
+        finally:
+            stop_nfs_server(nfs_process)
+            _run_commands(
+                teardown_commands,
+                check=False,
+                audit=audit,
+                phase="teardown",
+                session_id=session_id,
+            )
+            audit.end_session()
 
     return session_id
 

@@ -56,9 +56,52 @@ Landed `50d5786` on `origin/main`. Tag `v0.9.0-s1`.
 - Exit criterion met: no code path from request entry to model call
   can skip `LLMRails` based on size alone.
 
-## S2 — host-wide session lock
+## S2 — host-wide session lock  (v0.9.0-s2)
 
-Pending (task #3).
+Landed `<sha-placeholder>` on `origin/main`. Tag `v0.9.0-s2`.
+
+- Finding as stated: `run_manifest` had no cross-session mutex, so two
+  concurrent invocations on the same host would race on the single NFS
+  port (`DEFAULT_NFS_PORT = 11111`), on iptables INPUT/FORWARD rules
+  touching the same gateway, and on the ip_forward gate. The second
+  session would either fail halfway through setup or silently share
+  the first session's firewall posture.
+- Fix: new module `modules/isolation/session_lock.py` with
+  `acquire_session_lock` as a context manager, non-blocking
+  `fcntl.flock(LOCK_EX | LOCK_NB)` on
+  `/var/run/saaf-shell/session.lock` (path configurable).
+  `run_manifest` wraps its entire post-setup body in the lock; the
+  audit log itself is not inside the lock so out-of-process writers
+  (router, guardrails) still chain events normally. Lock held on the
+  FD (not the inode) so the kernel drops it on SIGKILL/OOM/crash —
+  crash-safe recovery is free and needs no cleanup script.
+- Non-blocking rationale: queueing would let a scheduler starve the
+  host with silent waiters. Fail-fast with the holder's PID makes
+  retry an explicit caller decision.
+- Audit events (all chained): `session_lock_acquired`,
+  `session_lock_released`, and `session_lock_contended`. Every denied
+  attempt lands in the log with the live holder's PID so operators can
+  see concurrent-start attempts, not just successes.
+- Windows: `fcntl` is not importable, so the context manager degrades
+  to a no-op. Firecracker is Linux-only anyway; this keeps test
+  collection and cross-platform dev working.
+- Tests added in `tests/test_isolation_session_lock.py` (5, all
+  POSIX-guarded with `pytest.mark.skipif`): happy-path acquire +
+  release (PID written to lockfile), contention raises
+  `SessionLockHeld` carrying the live holder's PID (via a
+  `multiprocessing.Process` holder), acquire/release audit events,
+  contended audit event, and re-acquire after an exception inside the
+  body. Existing `test_isolation_runtime.py` now passes
+  `session_lock_path=tmp_path / "session.lock"` so it doesn't touch
+  `/var/run/` on Linux CI.
+- Evidence: 638 passed + 5 skipped (the POSIX tests) on the Windows
+  venv; ruff clean; mypy clean on both the default platform and
+  `--platform linux`. The five POSIX tests execute on the Fedora
+  re-verify (#25) — noting the gap here per the evidence-before-claims
+  rule. On Windows dev the runtime test exercises the Windows no-op
+  path.
+- Exit criterion met: no two `run_manifest` calls can hold host
+  resources concurrently; every contention attempt is auditable.
 
 ## S3 — rail adversarial paraphrase harness
 

@@ -56,6 +56,7 @@ audit:
         rootfs_path=tmp_path / "rootfs",
         overlay_dir=tmp_path / ".agentfs",
         audit_log_path=tmp_path / "audit.jsonl",
+        session_lock_path=tmp_path / "session.lock",
     )
 
     assert session_id.startswith("vendor-guard-")

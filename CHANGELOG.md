@@ -25,6 +25,18 @@ curated narrative. For full commit detail per release, run
   rewritten: they asserted a 200 with proxied content on oversized
   input, which was the bypass this change closes. See
   `docs/REVIEW_2026-04-19_hardening.md` for the full batch log.
+- **S2 — host-wide session lock** (hardening wave batch 2, tag
+  `v0.9.0-s2`). New `modules/isolation/session_lock.py` wraps
+  `run_manifest` in a non-blocking `fcntl.flock(LOCK_EX | LOCK_NB)` on
+  `/var/run/saaf-shell/session.lock` (path configurable). Two
+  concurrent sessions on the same host used to race on the shared NFS
+  port, iptables rules, and `ip_forward` gate; the second caller now
+  fails fast with `SessionLockHeld` carrying the live holder's PID.
+  Lock is held on the file descriptor so the kernel auto-releases it
+  on crash (including SIGKILL / OOM) — crash-safe recovery with no
+  cleanup script. Every acquire, release, and contended attempt emits
+  a chained audit event. Windows path is a no-op (Firecracker is
+  Linux-only).
 
 ### Changed
 - CLI output now flows through the `logging` module (logger name
