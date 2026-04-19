@@ -493,7 +493,7 @@ this chain end."
 
 ## S8 — PII + history (RT-05 + RT-08)  (v0.9.0-s8)
 
-Landed on `main` (SHA filled in the follow-up commit). Tag `v0.9.0-s8`.
+Landed `34b2d50` on `origin/main`. Tag `v0.9.0-s8`.
 
 - **RT-05 (PII in refusal audit)** — `guardrails_config/actions/self_check_direct.py`
   previously emitted `{"user_input": user_message}` and
