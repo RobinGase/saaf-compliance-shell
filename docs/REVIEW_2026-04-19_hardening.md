@@ -539,9 +539,74 @@ Landed `34b2d50` on `origin/main`. Tag `v0.9.0-s8`.
 
 Pending — needs threat-model decision.
 
-## S10 — doc alignment + NAP mapping (RT-06 + RT-07 + original S7)
+## S10 — iptables -I + doc alignment (RT-06 + RT-07)  (v0.9.0-s10)
 
-Pending.
+Landed on `main` (SHA filled in the follow-up commit). Tag `v0.9.0-s10`.
+Scope trimmed: the original-S7 NAP (compliance-framework) mapping
+document is deferred to its own batch — RT-06 and RT-07 are two
+independent cleanups that shouldn't wait on a framework-mapping
+writeup, and bundling them with a doc-only batch would have blurred
+the closure evidence.
+
+S9 (RT-01 router boundary) was skipped, not closed — it still blocks
+on Robin's threat-model call (UDS + filesystem perms vs shared
+secret vs documented-accept). Tag sequencing jumps from `v0.9.0-s8`
+to `v0.9.0-s10`; `v0.9.0-s9` is reserved for when RT-01 lands.
+
+- **RT-06 (filter chains used `-A`)** —
+  `modules/isolation/network.py::build_setup_commands` switched from
+  ``-A <chain>`` to ``-I <chain> N`` on every filter-table rule
+  (``iptables INPUT`` ×3, ``iptables FORWARD`` ×2, ``ip6tables INPUT``
+  ×1, ``ip6tables FORWARD`` ×2). Position numbers are explicit (1, 2,
+  3) so the SAAF block lands at the top of each chain as an adjacent
+  contiguous region, with the internal ACCEPT-before-DROP order
+  preserved across INPUT positions 1/2/3. Under
+  ``SAAF_ALLOW_IP_FORWARD=1`` on a shared host, a Tailscale/Docker/
+  libvirt-appended ACCEPT can no longer match and return before
+  SAAF's DROP is evaluated. NAT ``PREROUTING`` stays ``-A`` — the
+  DNAT rule is scoped by ``-i <tap>`` and can't be shadowed by any
+  other-interface rule. `build_teardown_commands` is unchanged:
+  ``-D`` matches by rule spec, not position.
+- **RT-07 (docs claimed more than rails deliver)** — two `pass` stubs
+  in `guardrails_config/rails.co` were mis-documented in
+  `docs/SECURITY.md`:
+  - §3 used to say "The output rail does the same on model responses
+    before returning them to the workload" — the `mask pii in model
+    output` flow is a `pass` stub. Section rewritten into three
+    explicit subsections (input-side, audit-side, scope-gap-on-output)
+    with the output-side Presidio path called out as deferred. The
+    GDPR Art. 25 row in the Controls mapping table was also updated
+    from "PII masking at input and output" to "PII masking on input
+    (Presidio), PII-digested refusal events on audit side".
+  - §5 used to say "The `check topical relevance` rail rejects prompts
+    outside a configured allow-list" — that Colang flow is a `pass`
+    stub. Rewritten to name the **preflight** in
+    `modules/guardrails/service.py` (lowercase substring match over
+    `preflight_off_topic_patterns`) as the actual enforcement path,
+    with the "tripwire not a filter" framing matched to the
+    injection-preflight block above.
+- Tests:
+  - Updated `test_build_setup_commands_locks_guest_to_guardrails` in
+    `tests/test_isolation_network.py` to match the new ``-I``
+    command shape.
+  - New `test_build_setup_commands_prepends_filter_rules_for_shared_host_safety`:
+    asserts filter inserts carry contiguous positions 1..N per chain,
+    that no leftover ``-A`` exists on filter-table rules, and that
+    NAT PREROUTING stays ``-A`` (guards against a future refactor
+    silently flipping DNAT to an insert without thinking through
+    Docker coexistence).
+  - New `test_setup_input_insert_order_preserves_accept_before_drop`:
+    simulates the three INPUT inserts against a chain already
+    containing a hostile ACCEPT rule and asserts the final order is
+    ``[ACCEPT, ACCEPT, DROP, <existing>]``.
+- Evidence: 651 passed (+2), 36 skipped on the full suite (excluding
+  the pre-existing `test_presidio_redact` collection error from the
+  optional nemoguardrails dep). Ruff clean on touched files. Mypy on
+  `modules/isolation/network.py` clean.
+- Exit criterion met: no filter-table chain position is left to a
+  race with Tailscale/Docker/libvirt under the shared-host opt-in,
+  and SECURITY.md §3 and §5 no longer overstate what rails.co
+  actually does.
 
 ## S11 — SBOM + signed releases
 

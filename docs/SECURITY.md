@@ -24,9 +24,13 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 ### 3. PII leakage to the model or the logs
 
-**Defence:** NeMo Guardrails runs input and output rails. The input rail pipes user content through Presidio (with a Dutch-specific BSN recognizer) and replaces matches with stable placeholders. The output rail does the same on model responses before returning them to the workload. A rail that classifies an input or output as unsafe does **not** write the raw offending text into the audit chain — the refusal event carries a SHA-256 digest and the character length of the content instead (see `guardrails_config/actions/self_check_direct.py::_digest_for_audit`). The digest is enough to correlate duplicate refusals across the log without retaining the payload the rail just rejected.
+**Defence — input side:** The `mask pii in user input` Colang flow pipes user content through Presidio (with a Dutch-specific BSN recognizer) and replaces matches with stable placeholders before the model is invoked. If Presidio reports `has_unmasked_pii` (a match that survived redaction — rare, defence-in-depth check), the flow refuses outright.
 
-**Result:** The model never sees raw PII that Presidio recognised. The audit log contains `<PERSON>` and `<BSN_NL>` placeholders on the happy path, and opaque `content_sha256` digests on the refusal path — not plaintext in either case.
+**Defence — audit side:** A rail that classifies an input or output as unsafe does **not** write the raw offending text into the audit chain. The refusal event carries a SHA-256 digest and the character length of the content instead (see `guardrails_config/actions/self_check_direct.py::_digest_for_audit`, RT-05). The digest is enough to correlate duplicate refusals across the log without retaining the payload the rail just rejected.
+
+**Scope gap — output side:** The `mask pii in model output` Colang flow is a `pass` stub in the current release. Model output is **not** re-run through Presidio before being returned to the workload. Output-side defence comes from (a) the input-side redaction having already denied the model the raw PII tokens to echo back, and (b) the twelve output rails that check for other classes of unsafe content (unfounded verdicts, fabricated citations, etc.). An output-PII redaction path is tracked for a future release; the refusal-event digest covers the audit-leak surface in the meantime.
+
+**Result:** The model never sees raw PII that Presidio recognised on the input path. The audit log contains `<PERSON>` and `<BSN_NL>` placeholders where the input rail fired, and opaque `content_sha256` digests where a rail refused — not plaintext in either case.
 
 ### 4. Prompt injection
 
@@ -36,9 +40,9 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 ### 5. Off-topic use of the model
 
-**Defence:** The `check topical relevance` rail rejects prompts outside a configured allow-list of audit-related topics (financial audit, compliance review, risk assessment, vendor evaluation, regulatory analysis, document review).
+**Defence:** Off-topic rejection is delivered by the preflight tripwire in `modules/guardrails/service.py`, using the `preflight_off_topic_patterns` list in `guardrails_config/config.yml` (lowercase substring match). The Colang `check topical relevance` flow is a `pass` stub under Colang 2.x — a proper 2.x `@action` port is tracked for a future release; the preflight is the enforcement path today. Like the preflight injection list this is a **tripwire, not a filter**: paraphrases and synonyms slip past it. The honest framing is "cheaply catch blatant off-topic phrasing and create an audit record", not "block everything outside the allow-list".
 
-**Result:** `Write me a poem about the Netherlands` is rejected with a 400 before it reaches the model.
+**Result:** `Write me a poem about the Netherlands` is rejected with a 400 before it reaches the model, and a `guardrails_preflight_block` event with `category="off_topic"` and the matched pattern lands in the audit chain. Subtler off-topic phrasing (e.g. "draft a short ode") is not caught at the preflight and reaches the self-check LLM rail.
 
 ### 6. Audit log tampering
 
@@ -107,7 +111,7 @@ All automated cases run via `saaf-shell test --suite red-team`.
 
 | Regulation | Article / requirement | Control in the shell |
 |---|---|---|
-| GDPR | Art. 25 (Privacy by Design) | PII masking at input and output, local-only inference, default-deny network |
+| GDPR | Art. 25 (Privacy by Design) | PII masking on input (Presidio), PII-digested refusal events on audit side, local-only inference, default-deny network |
 | GDPR | Art. 30 (records of processing) | Hash-chained audit log, session start/end events, event counts |
 | GDPR | Art. 32 (security of processing) | Firecracker isolation, TAP + iptables, append-only log |
 | DORA | Operational resilience | Resource limits per VM, documented teardown, recoverable audit chain across crashes |

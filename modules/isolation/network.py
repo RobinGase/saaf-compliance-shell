@@ -122,6 +122,22 @@ def validate_v1_network_rules(manifest: dict) -> dict:
 
 
 def build_setup_commands(session_id: str, nfs_port: int = NFS_PORT) -> list[list[str]]:
+    """Build the iptables setup commands for a session's tap device.
+
+    RT-06: filter-table rules use ``-I <chain> N`` (insert at position),
+    not ``-A`` (append). On a shared host with Tailscale/Docker/libvirt,
+    those tools append their own ACCEPT rules to ``FORWARD`` (and, less
+    commonly, ``INPUT``). When an operator opts into
+    ``SAAF_ALLOW_IP_FORWARD=1``, an earlier-appended ACCEPT matches and
+    returns before SAAF's DROP is ever evaluated — the guest escapes the
+    tap. Inserting at explicit positions 1..N keeps the SAAF block at
+    the top of each chain, with the internal ACCEPT-before-DROP order
+    preserved across positions 1, 2, 3 on the ``INPUT`` chain.
+
+    NAT ``PREROUTING`` stays ``-A``: the SAAF DNAT rule is scoped by
+    ``-i <tap>``, so a Docker/libvirt rule on another interface can't
+    shadow it regardless of position.
+    """
     tap = tap_device_name(session_id)
     return [
         ["ip", "tuntap", "add", "dev", tap, "mode", "tap"],
@@ -131,8 +147,9 @@ def build_setup_commands(session_id: str, nfs_port: int = NFS_PORT) -> list[list
         ["sysctl", "-w", f"net.ipv6.conf.{tap}.disable_ipv6=1"],
         [
             "iptables",
-            "-A",
+            "-I",
             "INPUT",
+            "1",
             "-i",
             tap,
             "-p",
@@ -146,8 +163,9 @@ def build_setup_commands(session_id: str, nfs_port: int = NFS_PORT) -> list[list
         ],
         [
             "iptables",
-            "-A",
+            "-I",
             "INPUT",
+            "2",
             "-i",
             tap,
             "-p",
@@ -159,12 +177,12 @@ def build_setup_commands(session_id: str, nfs_port: int = NFS_PORT) -> list[list
             "-j",
             "ACCEPT",
         ],
-        ["iptables", "-A", "INPUT", "-i", tap, "-j", "DROP"],
-        ["iptables", "-A", "FORWARD", "-i", tap, "-j", "DROP"],
-        ["iptables", "-A", "FORWARD", "-o", tap, "-j", "DROP"],
-        ["ip6tables", "-A", "INPUT", "-i", tap, "-j", "DROP"],
-        ["ip6tables", "-A", "FORWARD", "-i", tap, "-j", "DROP"],
-        ["ip6tables", "-A", "FORWARD", "-o", tap, "-j", "DROP"],
+        ["iptables", "-I", "INPUT", "3", "-i", tap, "-j", "DROP"],
+        ["iptables", "-I", "FORWARD", "1", "-i", tap, "-j", "DROP"],
+        ["iptables", "-I", "FORWARD", "2", "-o", tap, "-j", "DROP"],
+        ["ip6tables", "-I", "INPUT", "1", "-i", tap, "-j", "DROP"],
+        ["ip6tables", "-I", "FORWARD", "1", "-i", tap, "-j", "DROP"],
+        ["ip6tables", "-I", "FORWARD", "2", "-o", tap, "-j", "DROP"],
         [
             "iptables",
             "-t",
