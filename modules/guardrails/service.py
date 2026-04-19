@@ -192,15 +192,24 @@ def create_app(config_path: str | Path) -> FastAPI:
 
     @app.post("/v1/chat/completions")
     async def chat_completions(body: ChatCompletionRequest) -> dict[str, Any]:
-        user_text = body.messages[-1].content if body.messages else ""
-        block = _preflight_block(user_text, config_path)
+        # RT-08: scan every message in the request, not just
+        # ``messages[-1]``. The full list is forwarded verbatim to
+        # ``LLMRails`` (see the ``generate_async`` call below), so an
+        # attacker can stash an injection in any earlier turn — including
+        # a replayed ``assistant`` message from a prior conversation — and
+        # the preflight tripwire must see it. First match wins; the index
+        # and role of the offending message land in the audit event so
+        # operators can see *which* turn tripped the wire.
+        block = _preflight_scan_messages(body.messages, config_path)
         if block is not None:
-            reason, category, pattern_hit = block
+            reason, category, pattern_hit, index, role = block
             _emit_audit(
                 "guardrails_preflight_block",
                 reason=reason,
                 category=category,
                 pattern=pattern_hit,
+                message_index=index,
+                message_role=role,
                 model=body.model,
             )
             raise HTTPException(status_code=400, detail=reason)
@@ -451,6 +460,30 @@ def _preflight_block(
                 "off_topic",
                 pattern,
             )
+    return None
+
+
+def _preflight_scan_messages(
+    messages: list[ChatMessage], config_path: str | Path
+) -> tuple[str, str, str, int, str] | None:
+    """Run the preflight tripwire across every message in the request.
+
+    Returns ``(reason, category, pattern_hit, index, role)`` on the first
+    match, ``None`` otherwise. Scans messages in request order so the
+    earliest injection wins; this keeps the audit event stable when an
+    attacker plants the same pattern in multiple turns.
+
+    Scans *every* role, not just ``user``. The full ``messages`` array is
+    forwarded verbatim to ``LLMRails``, so an injection hidden in a
+    replayed ``assistant`` or ``system`` turn reaches the model just as
+    easily as one in the last user turn. See RT-08 in
+    docs/REVIEW_2026-04-19_hardening.md.
+    """
+    for index, message in enumerate(messages):
+        hit = _preflight_block(message.content, config_path)
+        if hit is not None:
+            reason, category, pattern_hit = hit
+            return reason, category, pattern_hit, index, message.role
     return None
 
 

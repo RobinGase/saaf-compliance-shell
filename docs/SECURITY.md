@@ -24,15 +24,15 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 ### 3. PII leakage to the model or the logs
 
-**Defence:** NeMo Guardrails runs input and output rails. The input rail pipes user content through Presidio (with a Dutch-specific BSN recognizer) and replaces matches with stable placeholders. The output rail does the same on model responses before returning them to the workload.
+**Defence:** NeMo Guardrails runs input and output rails. The input rail pipes user content through Presidio (with a Dutch-specific BSN recognizer) and replaces matches with stable placeholders. The output rail does the same on model responses before returning them to the workload. A rail that classifies an input or output as unsafe does **not** write the raw offending text into the audit chain — the refusal event carries a SHA-256 digest and the character length of the content instead (see `guardrails_config/actions/self_check_direct.py::_digest_for_audit`). The digest is enough to correlate duplicate refusals across the log without retaining the payload the rail just rejected.
 
-**Result:** The model never sees raw PII that Presidio recognised. The audit log contains `<PERSON>` and `<BSN_NL>` placeholders, not plaintext.
+**Result:** The model never sees raw PII that Presidio recognised. The audit log contains `<PERSON>` and `<BSN_NL>` placeholders on the happy path, and opaque `content_sha256` digests on the refusal path — not plaintext in either case.
 
 ### 4. Prompt injection
 
-**Defence:** Guardrails' `self check input` rail is active. A cheap preflight layer in `modules/guardrails/service.py` also blocks obvious direct-injection phrasing before it reaches the rails.
+**Defence:** Guardrails' `self check input` rail is active. A cheap preflight layer in `modules/guardrails/service.py` also blocks obvious direct-injection phrasing before it reaches the rails. The preflight scans every message in the request, not just the final turn — the full `messages` array is forwarded to `LLMRails` verbatim, so an injection stashed in an earlier user turn or a replayed `assistant` turn reaches the model just like one in the last turn would. First match wins; the emitted `guardrails_preflight_block` event carries `message_index` and `message_role` so operators can see which turn tripped the wire.
 
-**Result:** `Ignore all previous instructions...` is rejected at preflight. Subtler attempts reach the self-check rail; the self-check LLM classifies them against a canonical intent set.
+**Result:** `Ignore all previous instructions...` is rejected at preflight regardless of which turn it appears in. Subtler attempts reach the self-check rail; the self-check LLM classifies them against a canonical intent set.
 
 ### 5. Off-topic use of the model
 

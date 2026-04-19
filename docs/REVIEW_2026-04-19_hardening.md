@@ -491,9 +491,49 @@ this chain end."
   WORM/HSM storage, remote anchor service. Implementation plan
   already excludes these as v0 scope.
 
-## S8 — PII + history (RT-05 + RT-08)
+## S8 — PII + history (RT-05 + RT-08)  (v0.9.0-s8)
 
-Pending.
+Landed on `main` (SHA filled in the follow-up commit). Tag `v0.9.0-s8`.
+
+- **RT-05 (PII in refusal audit)** — `guardrails_config/actions/self_check_direct.py`
+  previously emitted `{"user_input": user_message}` and
+  `{"bot_response": bot_message}` verbatim on refusal. On a rail that
+  just classified the content as unsafe, that's exactly the PII or
+  attack payload we don't want in the GDPR log. Fix: new module-local
+  helper `_digest_for_audit` returns
+  `{"content_sha256": <hex>, "content_len": <int>}`; both refusal
+  emitters were swapped to it. The output-path asymmetry in the
+  original report (only `bot_response` flagged) was extended to the
+  symmetric input-path leak, since the same failure mode applies.
+- **RT-08 (preflight only saw `messages[-1]`)** — `modules/guardrails/service.py`
+  preflighted the last message only, while `generate_async` forwards
+  the full message list verbatim. Fix: new helper
+  `_preflight_scan_messages` iterates the full list (every role, not
+  just `user` — replayed `assistant` turns also reach the model) and
+  returns the first match. The emitted `guardrails_preflight_block`
+  event now carries `message_index` and `message_role` so operators
+  can triage which turn tripped the wire.
+- Tests:
+  - New `tests/test_self_check_direct_redaction.py` (6 tests):
+    digest helper behaviour (hashes + sizes + `None` handling + call
+    stability), both refusal paths emit the digest instead of raw
+    content (assertion form: `raw_payload not in report.values()`),
+    and the safe path still emits nothing.
+  - New in `tests/test_guardrails_service.py` (3 tests): injection in
+    an earlier user turn fires with `message_index=0`; injection
+    replayed through an `assistant` turn fires with
+    `message_role="assistant"`; multi-hit scan pins
+    first-match-wins behaviour.
+- Evidence: 649 passed (+9), 36 skipped on the full suite (excluding
+  the pre-existing `test_presidio_redact` collection error from the
+  optional nemoguardrails dep). Ruff clean on all four touched files.
+  Mypy on `modules/guardrails/service.py` + `self_check_direct.py`:
+  2 pre-existing `no-redef` warnings in the nemoguardrails fallback
+  block, unchanged by S8 (confirmed by rerunning mypy against stashed
+  HEAD).
+- Exit criterion met: no code path emits raw user/bot text into the
+  audit chain on a refusal, and no message position can skip the
+  preflight tripwire.
 
 ## S9 — router boundary (RT-01)
 

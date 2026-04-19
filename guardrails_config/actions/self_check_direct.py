@@ -1,10 +1,28 @@
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 import httpx
 
 from modules.guardrails.audit_emit import emit_rail_fire
+
+
+def _digest_for_audit(value: Any) -> dict[str, Any]:
+    """Return a PII-safe fingerprint of ``value`` for audit emission.
+
+    The output-refusal path previously wrote ``bot_response`` verbatim
+    into the audit log (RT-05). On a GDPR log that's a data leak:
+    the refused output is exactly the text the rail judged unsafe and
+    may contain the PII that tripped it. Emit a SHA-256 digest plus the
+    character length instead so operators retain a stable correlation
+    handle without retaining the content.
+    """
+    text = "" if value is None else str(value)
+    return {
+        "content_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "content_len": len(text),
+    }
 
 try:
     from nemoguardrails.actions import action
@@ -66,9 +84,13 @@ async def self_check_input_direct(llm_task_manager, context=None, config=None, *
         config,
     )
     if not is_safe:
+        # Symmetric to the output-refusal path: a rail that just classified
+        # this input as unsafe will often have classified it because it
+        # contains PII or an attack payload. Never write the raw text into
+        # the audit log — emit a digest + length for correlation only.
         emit_rail_fire(
             "self_check_input_refusal",
-            {"user_input": user_input},
+            _digest_for_audit(user_input),
         )
         return ActionResult(return_value=False)
     return is_safe
@@ -90,6 +112,6 @@ async def self_check_output_direct(llm_task_manager, context=None, config=None, 
     if not is_safe:
         emit_rail_fire(
             "self_check_output_refusal",
-            {"bot_response": context.get("bot_message")},
+            _digest_for_audit(context.get("bot_message")),
         )
     return is_safe
