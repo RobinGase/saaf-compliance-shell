@@ -105,7 +105,7 @@ Landed `c874cae` on `origin/main`. Tag `v0.9.0-s2`.
 
 ## S3 — rail adversarial paraphrase harness  (v0.9.0-s3)
 
-Landed `<sha-placeholder>` on `origin/main`. Tag `v0.9.0-s3`.
+Landed `cab64b3` on `origin/main`. Tag `v0.9.0-s3`.
 
 - Finding as stated: per-rail unit tests cover each rail deeply but
   nothing protects against cross-rail drift. A regex edit in
