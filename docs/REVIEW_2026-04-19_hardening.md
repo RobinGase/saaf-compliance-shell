@@ -58,7 +58,7 @@ Landed `50d5786` on `origin/main`. Tag `v0.9.0-s1`.
 
 ## S2 — host-wide session lock  (v0.9.0-s2)
 
-Landed `<sha-placeholder>` on `origin/main`. Tag `v0.9.0-s2`.
+Landed `c874cae` on `origin/main`. Tag `v0.9.0-s2`.
 
 - Finding as stated: `run_manifest` had no cross-session mutex, so two
   concurrent invocations on the same host would race on the single NFS
