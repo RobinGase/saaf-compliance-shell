@@ -93,7 +93,7 @@ Twelve output rails target failure modes specific to audit-assistant agents. Eac
 
 **Escape hatch:** An operator who owns the network boundary by other means (TLS-terminating reverse proxy with client-cert auth, mTLS sidecar, kernel-level TAP filter) can set `SAAF_ALLOW_NONLOOPBACK_ROUTER=1` to accept a non-loopback bind. The envelope is the same shape as `SAAF_ALLOW_IP_FORWARD` — an explicit acknowledgement of the externally-enforced boundary, not a silent bypass.
 
-**Result:** `uvicorn modules.router.privacy_router:app --host 0.0.0.0` returns `403` on every request and writes a refusal event per call. The deployed systemd unit in `packaging/systemd/` binds to `127.0.0.1` by default.
+**Result:** `uvicorn modules.router.privacy_router:app --host 0.0.0.0` returns `403` on every request and writes a refusal event per call. The deployed systemd unit in `ops/systemd/` binds to `127.0.0.1` by default.
 
 **Scope gap — caller authentication:** The router does **not** cryptographically authenticate individual callers on loopback. Any process running as the `saaf` user (or root) can call it. A per-caller authentication layer (UDS with filesystem-permissioned socket, shared-secret header, or mTLS) is tracked for v0.9.1; for v0.9.0 the single-tenant VM host model makes the loopback boundary adequate — the microVM isolation path (§2) already blocks the guest workload from reaching the router, and the only remaining same-host callers are operator tooling under the same privilege.
 
