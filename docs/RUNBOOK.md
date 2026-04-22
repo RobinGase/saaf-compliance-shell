@@ -92,7 +92,9 @@ Router returns 502 or the health check reports `model_status: unreachable`.
 
 ## Leftover network state
 
-Previous run crashed before teardown. `ip link show` lists a `fc-*` TAP device; `sudo iptables -S` lists matching DNAT and DROP rules.
+Previous run crashed before teardown, or the session's ordered teardown itself aborted mid-iteration (e.g. an `AuditTamperDetected` raised from the teardown phase's audit writes — rare but possible). `ip link show` lists a `fc-*` TAP device; `sudo iptables -S` lists matching DNAT and DROP rules.
+
+B2 added a post-teardown safety sweep (`_force_delete_tap`) that runs even when the ordered teardown raised — check the audit log for `tap_force_deleted` (success) or `tap_force_delete_failed` (the force-delete itself errored; the tap likely still exists and the manual steps below apply). When the process is killed hard (SIGKILL, power loss) no Python code runs at all, so the manual procedure below is still the escape hatch.
 
 1. Identify the orphan TAP: `ip link show type tuntap | grep fc-`.
 2. Remove it: `sudo ip link delete fc-<prefix>-<hash>`.

@@ -140,26 +140,120 @@ def run_manifest(
             # before re-raising so operators reading the log see the
             # failure reason without cross-referencing stderr or container
             # logs. Teardown in ``finally`` still runs.
-            audit.record(
-                "vm_exit",
-                session_id=session_id,
-                status="failed",
-                reason=str(exc),
-                exception_class=type(exc).__name__,
-            )
+            try:
+                audit.record(
+                    "vm_exit",
+                    session_id=session_id,
+                    status="failed",
+                    reason=str(exc),
+                    exception_class=type(exc).__name__,
+                )
+            except Exception:
+                # B2: audit-chain tamper detection can itself raise here
+                # (AuditTamperDetected). Don't let it swallow the original
+                # failure and, more importantly, don't let it skip the
+                # finally-block teardown — that's the path that deletes
+                # the tap. Re-raise ``exc`` below so the original cause
+                # surfaces to the operator.
+                pass
             raise
         finally:
             stop_nfs_server(nfs_process)
-            _run_commands(
-                teardown_commands,
-                check=False,
-                audit=audit,
-                phase="teardown",
-                session_id=session_id,
-            )
-            audit.end_session()
+            try:
+                _run_commands(
+                    teardown_commands,
+                    check=False,
+                    audit=audit,
+                    phase="teardown",
+                    session_id=session_id,
+                )
+            except Exception:
+                # B2: teardown must never abort the tap-cleanup sweep.
+                # ``_run_commands`` with ``check=False`` only raises if
+                # ``audit.record`` itself raises (e.g. AuditTamperDetected
+                # mid-teardown). Swallow so the force-delete below runs;
+                # the original exception, if any, propagates from the
+                # outer try/except above.
+                pass
+            _force_delete_tap(tap_device, audit=audit, session_id=session_id)
+            try:
+                audit.end_session()
+            except Exception:
+                pass
 
     return session_id
+
+
+def _force_delete_tap(
+    tap: str,
+    *,
+    audit: AuditLog | None = None,
+    session_id: str = "",
+) -> None:
+    """Guarantee the session's tap interface is gone after teardown.
+
+    B2: the ordered teardown command list can be aborted mid-iteration when
+    ``audit.record`` itself raises (AuditTamperDetected, disk-full, etc.),
+    and a number of failure paths upstream of the final ``ip link del`` can
+    leave the tap behind. Host-side evidence: a session interrupted during
+    audit writing leaves ``fc-<prefix>-<hash>`` in ``ip link show``, which
+    accumulates between runs and eventually causes
+    ``RTNETLINK answers: File exists`` on the next session's ``ip tuntap
+    add``. This helper runs after the ordered teardown as a last resort:
+    check the interface, force-delete if present, and emit a best-effort
+    audit event naming the outcome so operators see the sweep in the chain.
+
+    All subprocess calls are isolated in ``try/except`` — the function
+    never raises. Audit failures are swallowed; by this point the session
+    is already unwinding and the priority is host-state cleanup, not log
+    fidelity.
+    """
+    try:
+        show = subprocess.run(
+            ["ip", "link", "show", tap],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return
+    if show.returncode != 0:
+        # Interface already gone — teardown path succeeded or the tap was
+        # never created. Nothing to do.
+        return
+
+    try:
+        delete = subprocess.run(
+            ["ip", "link", "del", tap],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:
+        if audit is not None:
+            try:
+                audit.record(
+                    "tap_force_delete_failed",
+                    session_id=session_id,
+                    tap=tap,
+                    exception_class=type(exc).__name__,
+                    reason=str(exc),
+                )
+            except Exception:
+                pass
+        return
+
+    if audit is not None:
+        try:
+            audit.record(
+                "tap_force_deleted",
+                session_id=session_id,
+                tap=tap,
+                returncode=delete.returncode,
+                stderr=delete.stderr.strip()[:500],
+            )
+        except Exception:
+            pass
 
 
 def _run_commands(
