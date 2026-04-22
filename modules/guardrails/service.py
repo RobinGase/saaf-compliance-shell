@@ -83,7 +83,7 @@ DEFAULT_OFF_TOPIC_PATTERNS: tuple[str, ...] = (
     "tell me a joke",
 )
 
-MAX_GUARDRAILS_PAYLOAD_CHARS = 12000
+MAX_GUARDRAILS_PAYLOAD_CHARS = int(os.environ.get("MAX_GUARDRAILS_PAYLOAD_CHARS", "32000"))
 
 
 def _config_dir_mtime(config_path: str) -> float:

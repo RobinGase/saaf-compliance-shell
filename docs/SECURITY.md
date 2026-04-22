@@ -36,6 +36,8 @@ The shell does **not** assume the host is hostile. A compromised host is game-ov
 
 **Defence:** Guardrails' `self check input` rail is active. A cheap preflight layer in `modules/guardrails/service.py` also blocks obvious direct-injection phrasing before it reaches the rails. The preflight scans every message in the request, not just the final turn — the full `messages` array is forwarded to `LLMRails` verbatim, so an injection stashed in an earlier user turn or a replayed `assistant` turn reaches the model just like one in the last turn would. First match wins; the emitted `guardrails_preflight_block` event carries `message_index` and `message_role` so operators can see which turn tripped the wire.
 
+**Payload-size tripwire:** Request bodies whose concatenated message text exceeds `MAX_GUARDRAILS_PAYLOAD_CHARS` (default `32000`, overridable via the env var of the same name) are refused with `413 payload_too_large_refused` and emit an `oversize_refused` audit event naming `payload_chars` and `threshold_chars`. The ceiling is a cost and injection-flood tripwire, not a filter — it exists so a runaway or adversarial caller cannot drive the rails at arbitrary length. Raise it via env var when real audit packets (multi-document SOC 2 + DORA + ISO bundles) exceed the default; the refusal event shape is unchanged so audit chain analysis still works across environments.
+
 **Result:** `Ignore all previous instructions...` is rejected at preflight regardless of which turn it appears in. Subtler attempts reach the self-check rail; the self-check LLM classifies them against a canonical intent set.
 
 ### 5. Off-topic use of the model
